@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f5f7;
+  --foreground: #2d3748;
+  --card-bg: #ffffff;
+  --card-border: #e2e8f0;
+
+  --brand-primary: #718096;
+  --brand-secondary: #a0aec0;
+  --brand-accent: #9ae6b4;
+  --brand-muted-coffee: #8c7a6b;
+  --brand-chill-grey: #e2e8f0;
+
+  --unfocused-border-color: #e2e8f0;
+  --focused-border-color: #94a3b8;
+
+  --button-disabled-color: #edf2f7;
+  --disabled-text-color: #a0aec0;
+
+  --geist-border-radius: 12px;
+  --geist-quarter-pad: 6px;
+  --geist-half-pad: 12px;
+  --geist-pad: 24px;
+  --geist-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  --geist-error: #e53e3e;
+  --subtitle: #64748b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1a202c;
+    --foreground: #e2e8f0;
+    --card-bg: #2d3748;
+    --card-border: #4a5568;
+
+    --brand-primary: #cbd5e0;
+    --brand-secondary: #718096;
+    --brand-accent: #68d391;
+    --brand-muted-coffee: #b7a99a;
+    --brand-chill-grey: #4a5568;
+
+    --unfocused-border-color: #4a5568;
+    --focused-border-color: #cbd5e0;
+    --button-disabled-color: #2d3748;
+    --geist-error: #fc8181;
+    --subtitle: #94a3b8;
+  }
+}
+
+@theme {
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --color-card-bg: var(--card-bg);
+  --color-card-border: var(--card-border);
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-secondary: var(--brand-secondary);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-coffee: var(--brand-muted-coffee);
+  --color-chill-grey: var(--brand-chill-grey);
+
+  --color-unfocused-border-color: var(--unfocused-border-color);
+  --color-focused-border-color: var(--focused-border-color);
+  --color-button-disabled-color: var(--button-disabled-color);
+  --color-disabled-text-color: var(--disabled-text-color);
+  --color-geist-error: var(--geist-error);
+  --color-subtitle: var(--subtitle);
+
+  --padding-geist-quarter: var(--geist-quarter-pad);
+  --padding-geist-half: var(--geist-half-pad);
+  --padding-geist: var(--geist-pad);
+  --spacing-geist: var(--geist-pad);
+  --spacing-geist-half: var(--geist-half-pad);
+  --spacing-geist-quarter: var(--geist-quarter-pad);
+  --radius-geist: var(--geist-border-radius);
+  --font-geist: var(--geist-font);
+  --animate-spinner: spinner 1.2s linear infinite;
+
+  @keyframes spinner {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0.15;
+    }
+  }
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--geist-font);
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
