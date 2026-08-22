@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-900 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TutorLink - Intelligent Tutor-Student Matching System</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Custom CSS for glassmorphism and animations -->
+  <style>
+    .glass-panel {
+      background: rgba(30, 41, 59, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .glass-card {
+      background: rgba(51, 65, 85, 0.5);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.2s ease-in-out;
+    }
+    .glass-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background-color: rgba(100, 116, 139, 0.5);
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col font-sans antialiased overflow-x-hidden selection:bg-indigo-500 selection:text-white">
+
+  <!-- TOP HEADER / NAVBAR -->
+  <header class="sticky top-0 z-40 w-full glass-panel border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+
+      <!-- Logo & Brand -->
+      <div class="flex items-center space-x-3 cursor-pointer" onclick="navigateTo('home')">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-indigo-500/20">
+          <i class="fa-solid fa-[# Graduation-cap] fa-graduation-cap"></i>
+        </div>
+        <div>
+          <span class="text-xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-300 to-pink-400">TutorLink</span>
+          <span class="block text-[10px] font-semibold text-indigo-400 uppercase tracking-widest">AI Matching Platform</span>
+        </div>
+      </div>
+
+      <!-- Navigation Links -->
+      <nav class="hidden md:flex items-center space-x-1">
+        <button onclick="navigateTo('home')" id="nav-home" class="px-3 py-2 rounded-lg text-sm font-medium transition text-indigo-400 bg-indigo-500/10">
+          <i class="fa-solid fa-house mr-1.5"></i>Home
+        </button>
+        <button onclick="navigateTo('matching')" id="nav-matching" class="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition">
+          <i class="fa-solid fa-wand-magic-sparkles mr-1.5 text-indigo-400"></i>AI Matching
+        </button>
+        <button onclick="navigateTo('schedule')" id="nav-schedule" class="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition">
+          <i class="fa-solid fa-calendar-days mr-1.5 text-purple-400"></i>Schedule
+        </button>
+        <button onclick="navigateTo('payments')" id="nav-payments" class="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition">
+          <i class="fa-solid fa-credit-card mr-1.5 text-emerald-400"></i>Payments
+        </button>
+        <button onclick="navigateTo('admin')" id="nav-admin" class="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition">
+          <i class="fa-solid fa-chart-line mr-1.5 text-amber-400"></i>Monitoring
+        </button>
+      </nav>
+
+      <!-- Right Header Tools (Role Switcher, Notifications) -->
+      <div class="flex items-center space-x-3">
+        <!-- Role Switcher Badge -->
+        <div class="relative inline-block text-left">
+          <div class="flex items-center space-x-2 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold">
+            <span class="text-slate-400">Role:</span>
+            <select id="roleSelector" onchange="changeActiveRole(this.value)" class="bg-transparent text-indigo-400 font-bold focus:outline-none cursor-pointer">
+              <option value="student" class="bg-slate-800 text-white">Student (Alex)</option>
+              <option value="tutor" class="bg-slate-800 text-white">Tutor (Dr. Sarah)</option>
+              <option value="admin" class="bg-slate-800 text-white">Admin</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Notification Bell -->
+        <div class="relative">
+          <button onclick="toggleNotificationMenu()" class="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:text-white focus:outline-none relative">
+            <i class="fa-regular fa-bell text-lg"></i>
+            <span id="notifBadge" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-rose-500 rounded-full text-[10px] text-white flex items-center justify-center font-bold animate-pulse">0</span>
+          </button>
+
+          <!-- Notification Dropdown Menu -->
+          <div id="notifDropdown" class="hidden absolute right-0 mt-2 w-80 glass-panel rounded-2xl shadow-2xl p-4 z-50 border border-slate-700">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-700 mb-3">
+              <h4 class="text-sm font-bold text-white flex items-center"><i class="fa-solid fa-bell text-indigo-400 mr-2"></i>Notifications</h4>
+              <span id="notifCountText" class="text-xs text-slate-400">0 unread</span>
+            </div>
+            <div id="notifList" class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+              <p class="text-xs text-slate-400 text-center py-4">No notifications yet.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+    <!-- PAGE 1: HOME / LANDING PAGE -->
+    <section id="page-home" class="space-y-12">
+      <!-- Hero Section -->
+      <div class="relative rounded-3xl overflow-hidden bg-gradient-to-r from-indigo-900/50 via-slate-900 to-purple-900/50 p-8 md:p-12 border border-slate-800 text-center md:text-left flex flex-col md:flex-row items-center justify-between">
+        <div class="max-w-2xl space-y-6 z-10">
+          <span class="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 inline-flex items-center">
+            <i class="fa-solid fa-robot mr-2"></i> Powered by AI Tutor-Matching Engine
+          </span>
+          <h1 class="text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
+            Connect with Your Ideal Tutor in <span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">Seconds</span>.
+          </h1>
+          <p class="text-slate-300 text-base md:text-lg">
+            TutorLink uses AI matching algorithms to seamlessly pair students with verified academic experts. Enjoy flexible calendar scheduling, instant online payments, and comprehensive learning tracking.
+          </p>
+          <div class="flex flex-wrap gap-4 pt-2 justify-center md:justify-start">
+            <button onclick="navigateTo('matching')" class="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold shadow-lg shadow-indigo-500/25 transition flex items-center">
+              <i class="fa-solid fa-wand-magic-sparkles mr-2"></i> Find My Match Now
+            </button>
+            <button onclick="openChatbot()" class="px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold transition flex items-center">
+              <i class="fa-solid fa-comments mr-2 text-indigo-400"></i> Talk to AI Assistant
+            </button>
+          </div>
+        </div>
+        <!-- Hero Graphic -->
+        <div class="mt-8 md:mt-0 relative w-full md:w-80 h-72 flex items-center justify-center">
+          <div class="absolute w-64 h-64 bg-indigo-500/20 rounded-full filter blur-3xl animate-pulse"></div>
+          <div class="glass-panel p-6 rounded-2xl border border-slate-700 space-y-4 shadow-2xl relative z-10 text-left w-full">
+            <div class="flex items-center space-x-3">
+              <div class="w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-xl">
+                <i class="fa-solid fa-brain"></i>
+              </div>
+              <div>
+                <h3 class="font-bold text-white text-sm">Smart AI Matcher</h3>
+                <p class="text-xs text-slate-400">Analyzes 10+ preferences</p>
+              </div>
+            </div>
+            <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700/50 space-y-2">
+              <div class="flex justify-between text-xs font-semibold text-slate-300">
+                <span>Calculus Specialist</span>
+                <span class="text-indigo-400 font-bold">98% Match</span>
+              </div>
+              <div class="w-full bg-slate-700 rounded-full h-2">
+                <div class="bg-indigo-500 h-2 rounded-full" style="width: 98%"></div>
+              </div>
+            </div>
+            <p class="text-xs text-slate-400 italic">"Found Dr. Sarah in 2 clicks. Grades improved from B to A!"</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature Grid (Corresponding to the 5 Core Features from SOP document) -->
+      <div>
+        <div class="text-center max-w-xl mx-auto mb-8">
+          <h2 class="text-2xl md:text-3xl font-bold text-white">5 Core Platform Pillars</h2>
+          <p class="text-slate-400 text-sm mt-2">Designed specifically to solve schedule conflicts, delayed payments, and finding the right tutors.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <!-- Feature 1 -->
+          <div class="glass-card p-5 rounded-2xl space-y-3 border border-slate-800 hover:border-indigo-500/50 transition">
+            <div class="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold text-lg">
+              <i class="fa-solid fa-wand-magic-sparkles"></i>
+            </div>
+            <h3 class="font-bold text-white text-base">AI Tutor Matching</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">Matches learning preferences, subject needs, budget, and schedules with high precision.</p>
+          </div>
+
+          <!-- Feature 2 -->
+          <div class="glass-card p-5 rounded-2xl space-y-3 border border-slate-800 hover:border-purple-500/50 transition">
+            <div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold text-lg">
+              <i class="fa-solid fa-calendar-check"></i>
+            </div>
+            <h3 class="font-bold text-white text-base">Calendar Scheduling</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">Real-time slot toggles eliminate double booking and schedule conflicts.</p>
+          </div>
+
+          <!-- Feature 3 -->
+          <div class="glass-card p-5 rounded-2xl space-y-3 border border-slate-800 hover:border-emerald-500/50 transition">
+            <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold text-lg">
+              <i class="fa-solid fa-credit-card"></i>
+            </div>
+            <h3 class="font-bold text-white text-base">Online Payments</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">Instant payment confirmation and automatic transaction receipt generation.</p>
+          </div>
+
+          <!-- Feature 4 -->
+          <div class="glass-card p-5 rounded-2xl space-y-3 border border-slate-800 hover:border-amber-500/50 transition">
+            <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold text-lg">
+              <i class="fa-solid fa-bell"></i>
+            </div>
+            <h3 class="font-bold text-white text-base">Real-time Updates</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">Instant notifications keep students and tutors synchronized on upcoming sessions.</p>
+          </div>
+
+          <!-- Feature 5 -->
+          <div class="glass-card p-5 rounded-2xl space-y-3 border border-slate-800 hover:border-pink-500/50 transition">
+            <div class="w-10 h-10 rounded-xl bg-pink-500/10 text-pink-400 flex items-center justify-center font-bold text-lg">
+              <i class="fa-solid fa-chart-pie"></i>
+            </div>
+            <h3 class="font-bold text-white text-base">Monitoring Reports</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">Admin oversight dashboard tracking sessions, system revenue, and active logs.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE 2: AI TUTOR MATCHING & SEARCH -->
+    <section id="page-matching" class="hidden space-y-8">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+        <div>
+          <h2 class="text-2xl md:text-3xl font-black text-white flex items-center">
+            <i class="fa-solid fa-wand-magic-sparkles text-indigo-400 mr-3"></i> AI Tutor Matching Engine
+          </h2>
+          <p class="text-slate-400 text-sm mt-1">Enter your learning goals to find top matching tutors in real time.</p>
+        </div>
+      </div>
+
+      <!-- Matching Search Bar Controls -->
+      <div class="glass-panel p-6 rounded-2xl space-y-4 border border-slate-700">
+        <form id="matchingForm" onsubmit="executeAIMatch(event)" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Subject / Skill</label>
+            <input type="text" id="matchSubject" placeholder="e.g. Mathematics, Python, Physics" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Max Hourly Budget ($/hr)</label>
+            <input type="number" id="matchBudget" placeholder="e.g. 50" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Preferred Time / Day</label>
+            <select id="matchDay" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none">
+              <option value="">Any Availability</option>
+              <option value="1">Monday</option>
+              <option value="2">Tuesday</option>
+              <option value="3">Wednesday</option>
+              <option value="4">Thursday</option>
+              <option value="5">Friday</option>
+            </select>
+          </div>
+          <div class="flex items-end">
+            <button type="submit" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition flex items-center justify-center shadow-lg shadow-indigo-600/30">
+              <i class="fa-solid fa-magnifying-glass mr-2"></i> Run AI Match
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Tutor Results Container -->
+      <div id="tutorResultsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Dynamically injected tutor cards -->
+      </div>
+    </section>
+
+    <!-- PAGE 3: CALENDAR SCHEDULING & APPOINTMENT BOOKING -->
+    <section id="page-schedule" class="hidden space-y-8">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+        <div>
+          <h2 class="text-2xl md:text-3xl font-black text-white flex items-center">
+            <i class="fa-solid fa-calendar-days text-purple-400 mr-3"></i> Session Schedule & Booking
+          </h2>
+          <p class="text-slate-400 text-sm mt-1">Manage scheduled tutoring appointments and availability slots.</p>
+        </div>
+        <button onclick="openBookingModal()" class="px-5 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-bold rounded-xl shadow-lg transition flex items-center">
+          <i class="fa-solid fa-plus mr-2"></i> Book New Session
+        </button>
+      </div>
+
+      <!-- Appointments List Container -->
+      <div class="glass-panel p-6 rounded-2xl border border-slate-700 space-y-4">
+        <h3 class="text-lg font-bold text-white flex items-center"><i class="fa-solid fa-list-check text-indigo-400 mr-2"></i> Your Scheduled Sessions</h3>
+        <div id="appointmentsList" class="space-y-3">
+          <p class="text-sm text-slate-400 text-center py-6">Loading appointments...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE 4: ONLINE PAYMENTS & RECEIPTS -->
+    <section id="page-payments" class="hidden space-y-8">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+        <div>
+          <h2 class="text-2xl md:text-3xl font-black text-white flex items-center">
+            <i class="fa-solid fa-credit-card text-emerald-400 mr-3"></i> Online Payments & History
+          </h2>
+          <p class="text-slate-400 text-sm mt-1">View transaction receipts and manage session payments.</p>
+        </div>
+      </div>
+
+      <div class="glass-panel p-6 rounded-2xl border border-slate-700 space-y-4">
+        <h3 class="text-lg font-bold text-white flex items-center"><i class="fa-solid fa-receipt text-emerald-400 mr-2"></i> Payment History</h3>
+        <div id="paymentsList" class="space-y-3">
+          <p class="text-sm text-slate-400 text-center py-6">Loading payments...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE 5: ADMIN MONITORING REPORTS -->
+    <section id="page-admin" class="hidden space-y-8">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+        <div>
+          <h2 class="text-2xl md:text-3xl font-black text-white flex items-center">
+            <i class="fa-solid fa-chart-line text-amber-400 mr-3"></i> Admin Monitoring Reports
+          </h2>
+          <p class="text-slate-400 text-sm mt-1">Real-time system telemetry, session metrics, and audit logs.</p>
+        </div>
+      </div>
+
+      <!-- System Metrics Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="glass-card p-5 rounded-2xl border border-slate-700 space-y-2">
+          <span class="text-xs text-slate-400 font-semibold uppercase">Total Students</span>
+          <p id="metricStudents" class="text-3xl font-black text-white">0</p>
+        </div>
+        <div class="glass-card p-5 rounded-2xl border border-slate-700 space-y-2">
+          <span class="text-xs text-slate-400 font-semibold uppercase">Total Tutors</span>
+          <p id="metricTutors" class="text-3xl font-black text-indigo-400">0</p>
+        </div>
+        <div class="glass-card p-5 rounded-2xl border border-slate-700 space-y-2">
+          <span class="text-xs text-slate-400 font-semibold uppercase">Total Sessions</span>
+          <p id="metricSessions" class="text-3xl font-black text-purple-400">0</p>
+        </div>
+        <div class="glass-card p-5 rounded-2xl border border-slate-700 space-y-2">
+          <span class="text-xs text-slate-400 font-semibold uppercase">Total Revenue</span>
+          <p id="metricRevenue" class="text-3xl font-black text-emerald-400">$0</p>
+        </div>
+      </div>
+
+      <!-- Activity Logs Table -->
+      <div class="glass-panel p-6 rounded-2xl border border-slate-700 space-y-4">
+        <h3 class="text-lg font-bold text-white flex items-center"><i class="fa-solid fa-clock-rotate-left text-amber-400 mr-2"></i> System Activity Logs</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-slate-300">
+            <thead class="bg-slate-800 text-slate-400 uppercase text-[11px] tracking-wider">
+              <tr>
+                <th class="p-3">Timestamp</th>
+                <th class="p-3">Action</th>
+                <th class="p-3">Details</th>
+              </tr>
+            </thead>
+            <tbody id="activityLogsBody" class="divide-y divide-slate-800">
+              <!-- Dynamically populated activity rows -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- BOOKING MODAL -->
+  <div id="bookingModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="glass-panel w-full max-w-md rounded-3xl p-6 border border-slate-700 space-y-5 shadow-2xl relative">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-700">
+        <h3 class="text-lg font-bold text-white flex items-center"><i class="fa-solid fa-calendar-plus text-indigo-400 mr-2"></i> Book Tutoring Session</h3>
+        <button onclick="closeBookingModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <form id="bookingForm" onsubmit="submitAppointmentBooking(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Select Tutor</label>
+          <select id="bookTutorSelect" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+            <!-- Dynamically filled with tutors -->
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Subject</label>
+          <input type="text" id="bookSubject" required placeholder="e.g. Calculus I, Python Basics" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Date</label>
+            <input type="date" id="bookDate" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Time Slot</label>
+            <select id="bookTime" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+              <option value="09:00">09:00 AM - 10:00 AM</option>
+              <option value="10:00">10:00 AM - 11:00 AM</option>
+              <option value="14:00">02:00 PM - 03:00 PM</option>
+              <option value="15:00">03:00 PM - 04:00 PM</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Session Notes (Optional)</label>
+          <textarea id="bookNotes" rows="2" placeholder="Specific topics or homework help required..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"></textarea>
+        </div>
+
+        <button type="submit" class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-white shadow-lg transition">
+          Confirm & Reserve Slot
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- PAYMENT MODAL -->
+  <div id="paymentModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="glass-panel w-full max-w-md rounded-3xl p-6 border border-slate-700 space-y-5 shadow-2xl relative">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-700">
+        <h3 class="text-lg font-bold text-white flex items-center"><i class="fa-solid fa-shield-halved text-emerald-400 mr-2"></i> Online Secure Payment</h3>
+        <button onclick="closePaymentModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <div id="paymentDetailsSummary" class="bg-slate-800/80 p-4 rounded-xl border border-slate-700 text-sm space-y-1">
+        <p class="text-slate-300">Appointment: <span id="payApptSubject" class="font-bold text-white"></span></p>
+        <p class="text-slate-300">Tutor: <span id="payTutorName" class="font-bold text-indigo-400"></span></p>
+        <p class="text-slate-300">Amount Due: <span id="payAmount" class="font-black text-emerald-400 text-lg"></span></p>
+      </div>
+
+      <form id="paymentForm" onsubmit="submitPaymentProcessing(event)" class="space-y-4">
+        <input type="hidden" id="payApptId">
+        <input type="hidden" id="payAmountVal">
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Payment Method</label>
+          <select id="payMethod" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none">
+            <option value="Credit Card">Credit / Debit Card</option>
+            <option value="Digital Wallet">Digital Wallet (GCash / PayPal)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Card / Account Holder</label>
+          <input type="text" required value="Alex Johnson" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none">
+        </div>
+
+        <button type="submit" class="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white shadow-lg transition flex items-center justify-center">
+          <i class="fa-solid fa-lock mr-2"></i> Pay & Generate Receipt
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- FLOATING AI CHATBOT WIDGET -->
+  <div class="fixed bottom-6 right-6 z-50">
+    <!-- Chatbot Toggle Button -->
+    <button onclick="toggleChatbotWindow()" class="w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 hover:scale-105 transition shadow-2xl flex items-center justify-center text-white text-2xl relative">
+      <i class="fa-solid fa-robot"></i>
+      <span class="absolute top-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-slate-900 rounded-full"></span>
+    </button>
+
+    <!-- Chatbot Window -->
+    <div id="chatbotWindow" class="hidden absolute bottom-16 right-0 w-96 max-w-[calc(100vw-2rem)] h-[500px] glass-panel rounded-3xl border border-slate-700 shadow-2xl flex flex-col overflow-hidden">
+      <!-- Chat Header -->
+      <div class="p-4 bg-slate-800/90 border-b border-slate-700 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-9 h-9 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
+            <i class="fa-solid fa-robot"></i>
+          </div>
+          <div>
+            <h4 class="font-bold text-white text-sm">TutorLink AI Assistant</h4>
+            <span class="text-[10px] text-emerald-400 flex items-center"><span class="w-1.5 h-1.5 bg-emerald-400 rounded-full mr-1"></span> Online</span>
+          </div>
+        </div>
+        <button onclick="toggleChatbotWindow()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Chat Messages Body -->
+      <div id="chatMessages" class="flex-1 p-4 overflow-y-auto space-y-3 custom-scrollbar text-xs">
+        <!-- Initial Welcome Message -->
+        <div class="flex items-start space-x-2">
+          <div class="w-7 h-7 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-xs flex-shrink-0">
+            <i class="fa-solid fa-robot"></i>
+          </div>
+          <div class="bg-slate-800 p-3 rounded-2xl rounded-tl-none border border-slate-700 text-slate-200 max-w-[85%] leading-relaxed">
+            Hello! I'm your AI Assistant. Need help finding a Math or Python tutor, or have questions about scheduling and payments?
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Prompt Chips -->
+      <div class="p-2 border-t border-slate-800 bg-slate-900/50 flex gap-2 overflow-x-auto custom-scrollbar text-[10px]">
+        <button onclick="sendQuickPrompt('Find me a Math tutor')" class="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 whitespace-nowrap">
+          📐 Math Tutor
+        </button>
+        <button onclick="sendQuickPrompt('Suggest a Computer Science tutor')" class="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-purple-300 border border-slate-700 whitespace-nowrap">
+          💻 CS / Python
+        </button>
+        <button onclick="sendQuickPrompt('How do cancellations work?')" class="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 whitespace-nowrap">
+          ❓ Policy FAQ
+        </button>
+      </div>
+
+      <!-- Chat Input Form -->
+      <form onsubmit="submitChatMessage(event)" class="p-3 border-t border-slate-700 bg-slate-800/90 flex items-center gap-2">
+        <input type="text" id="chatInput" placeholder="Ask AI assistant..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+        <button type="submit" class="w-9 h-9 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center transition">
+          <i class="fa-solid fa-paper-plane text-xs"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- APPLICATION JAVASCRIPT -->
+  <script>
+    // State Variables
+    let currentUser = { id: 6, name: "Alex Johnson", role: "student" };
+    let activePage = 'home';
+    let cachedTutors = [];
+
+    // Initialize Page
+    document.addEventListener("DOMContentLoaded", () => {
+      // Set default booking date to tomorrow
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      document.getElementById('bookDate').value = tomorrow.toISOString().split('T')[0];
+
+      loadInitialTutors();
+      loadNotifications();
+    });
+
+    // Navigation Handler
+    function navigateTo(pageId) {
+      activePage = pageId;
+      ['home', 'matching', 'schedule', 'payments', 'admin'].forEach(p => {
+        document.getElementById(`page-${p}`).classList.add('hidden');
+        const navBtn = document.getElementById(`nav-${p}`);
+        if (navBtn) {
+          navBtn.classList.remove('text-indigo-400', 'bg-indigo-500/10');
+          navBtn.classList.add('text-slate-300');
+        }
+      });
+
+      document.getElementById(`page-${pageId}`).classList.remove('hidden');
+      const activeNav = document.getElementById(`nav-${pageId}`);
+      if (activeNav) {
+        activeNav.classList.add('text-indigo-400', 'bg-indigo-500/10');
+        activeNav.classList.remove('text-slate-300');
+      }
+
+      // Refresh page specific data
+      if (pageId === 'schedule') loadAppointments();
+      if (pageId === 'payments') loadPayments();
+      if (pageId === 'admin') loadAdminReports();
+    }
+
+    // Role Switcher
+    function changeActiveRole(role) {
+      if (role === 'student') {
+        currentUser = { id: 6, name: "Alex Johnson", role: "student" };
+      } else if (role === 'tutor') {
+        currentUser = { id: 2, name: "Dr. Sarah Jenkins", role: "tutor" };
+      } else if (role === 'admin') {
+        currentUser = { id: 1, name: "Admin User", role: "admin" };
+        navigateTo('admin');
+      }
+      loadNotifications();
+      if (activePage === 'schedule') loadAppointments();
+      if (activePage === 'payments') loadPayments();
+    }
+
+    // Load Initial Tutors
+    async function loadInitialTutors() {
+      try {
+        const res = await fetch('/api/tutors/search');
+        const data = await res.json();
+        cachedTutors = data.tutors || [];
+        renderTutorCards(cachedTutors);
+        populateTutorDropdown(cachedTutors);
+      } catch (err) {
+        console.error("Error loading tutors:", err);
+      }
+    }
+
+    // Execute AI Tutor Match
+    async function executeAIMatch(e) {
+      if (e) e.preventDefault();
+      const subject = document.getElementById('matchSubject').value;
+      const maxBudget = document.getElementById('matchBudget').value;
+      const preferredDay = document.getElementById('matchDay').value;
+
+      try {
+        const res = await fetch('/api/tutors/match', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subject, maxBudget, preferredDay })
+        });
+        const data = await res.json();
+        renderTutorCards(data.matches || []);
+      } catch (err) {
+        console.error("Error running AI match:", err);
+      }
+    }
+
+    // Render Tutor Cards
+    function renderTutorCards(tutors) {
+      const container = document.getElementById('tutorResultsContainer');
+      if (tutors.length === 0) {
+        container.innerHTML = `<p class="col-span-full text-slate-400 text-center py-8">No matching tutors found.</p>`;
+        return;
+      }
+
+      container.innerHTML = tutors.map(t => `
+        <div class="glass-card rounded-2xl p-6 border border-slate-700 flex flex-col justify-between space-y-4">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                <img src="${t.avatar}" class="w-12 h-12 rounded-full object-cover border-2 border-indigo-500/30">
+                <div>
+                  <h4 class="font-bold text-white text-base">${t.name}</h4>
+                  <span class="text-xs text-indigo-400 font-semibold">${t.subjects}</span>
+                </div>
+              </div>
+              ${t.matchPercentage ? `<span class="px-2.5 py-1 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-full text-xs font-bold">${t.matchPercentage}% Match</span>` : ''}
+            </div>
+
+            <p class="text-xs text-slate-300 line-clamp-3 leading-relaxed">${t.bio}</p>
+
+            ${t.matchReasons ? `
+              <div class="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/50 text-[11px] space-y-1">
+                <span class="font-bold text-indigo-300">Match Insights:</span>
+                <ul class="list-disc list-inside text-slate-400">
+                  ${t.matchReasons.map(r => `<li>${r}</li>`).join('')}
+                </ul>
+              </div>
+            ` : ''}
+          </div>
+
+          <div class="pt-3 border-t border-slate-700/60 flex items-center justify-between">
+            <div>
+              <span class="text-lg font-black text-emerald-400">$${t.hourly_rate}</span>
+              <span class="text-[11px] text-slate-400"> / hour</span>
+              <div class="text-xs text-amber-400 font-semibold">${t.rating} ★ (${t.experience_years} yrs exp)</div>
+            </div>
+            <button onclick="quickBookTutor(${t.id}, '${t.name}')" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition">
+              Book Session
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Populate Tutor Dropdown
+    function populateTutorDropdown(tutors) {
+      const select = document.getElementById('bookTutorSelect');
+      select.innerHTML = tutors.map(t => `<option value="${t.id}">${t.name} ($${t.hourly_rate}/hr - ${t.subjects})</option>`).join('');
+    }
+
+    // Quick Book Action
+    function quickBookTutor(tutorId, tutorName) {
+      document.getElementById('bookTutorSelect').value = tutorId;
+      openBookingModal();
+    }
+
+    // Modal Control Functions
+    function openBookingModal() { document.getElementById('bookingModal').classList.remove('hidden'); }
+    function closeBookingModal() { document.getElementById('bookingModal').classList.add('hidden'); }
+    function openPaymentModal() { document.getElementById('paymentModal').classList.remove('hidden'); }
+    function closePaymentModal() { document.getElementById('paymentModal').classList.add('hidden'); }
+
+    // Submit Appointment Booking
+    async function submitAppointmentBooking(e) {
+      e.preventDefault();
+      const tutor_id = document.getElementById('bookTutorSelect').value;
+      const subject = document.getElementById('bookSubject').value;
+      const date = document.getElementById('bookDate').value;
+      const start_time = document.getElementById('bookTime').value;
+      const notes = document.getElementById('bookNotes').value;
+
+      try {
+        const res = await fetch('/api/appointments/book', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            student_id: currentUser.id,
+            tutor_id,
+            subject,
+            date,
+            start_time,
+            end_time: (parseInt(start_time.split(':')[0]) + 1).toString().padStart(2, '0') + ':00',
+            notes
+          })
+        });
+
+        const result = await res.json();
+        if (res.ok) {
+          closeBookingModal();
+          navigateTo('schedule');
+          loadNotifications();
+        } else {
+          alert(result.error || "Booking failed.");
+        }
+      } catch (err) {
+        console.error("Booking error:", err);
+      }
+    }
+
+    // Load Appointments
+    async function loadAppointments() {
+      const container = document.getElementById('appointmentsList');
+      let url = '/api/appointments?';
+      if (currentUser.role === 'student') url += `student_id=${currentUser.id}`;
+      else if (currentUser.role === 'tutor') url += `tutor_id=${currentUser.id}`;
+
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        const appointments = data.appointments || [];
+
+        if (appointments.length === 0) {
+          container.innerHTML = `<p class="text-sm text-slate-400 text-center py-6">No appointments scheduled.</p>`;
+          return;
+        }
+
+        container.innerHTML = appointments.map(a => `
+          <div class="glass-card p-4 rounded-xl border border-slate-700 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div class="space-y-1">
+              <div class="flex items-center space-x-2">
+                <span class="font-bold text-white text-base">${a.subject}</span>
+                <span class="px-2 py-0.5 text-[10px] rounded-full font-bold uppercase ${a.status === 'Booked' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-rose-500/20 text-rose-400'}">${a.status}</span>
+              </div>
+              <p class="text-xs text-slate-300">
+                <i class="fa-regular fa-user text-indigo-400 mr-1"></i> ${currentUser.role === 'student' ? 'Tutor: ' + a.tutor_name : 'Student: ' + a.student_name}
+                &nbsp;|&nbsp;
+                <i class="fa-regular fa-clock text-purple-400 mr-1"></i> ${a.date} at ${a.start_time} - ${a.end_time}
+              </p>
+              ${a.notes ? `<p class="text-xs text-slate-400 italic">"${a.notes}"</p>` : ''}
+            </div>
+
+            <div class="flex items-center space-x-2">
+              ${a.status === 'Booked' && currentUser.role === 'student' ? `
+                ${a.payment_status === 'Paid' ? `
+                  <span class="px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold flex items-center">
+                    <i class="fa-solid fa-circle-check mr-1.5"></i> Paid ($${a.hourly_rate})
+                  </span>
+                ` : `
+                  <button onclick="promptPayment(${a.id}, '${a.subject}', '${a.tutor_name}', ${a.hourly_rate})" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition">
+                    Pay $${a.hourly_rate}
+                  </button>
+                `}
+                <button onclick="cancelAppointment(${a.id})" class="px-3 py-2 bg-slate-800 hover:bg-rose-900/50 text-rose-400 border border-slate-700 text-xs font-bold rounded-xl transition">
+                  Cancel
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error("Error loading appointments:", err);
+      }
+    }
+
+    // Cancel Appointment
+    async function cancelAppointment(id) {
+      if (!confirm("Are you sure you want to cancel this appointment?")) return;
+      try {
+        const res = await fetch(`/api/appointments/${id}/cancel`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: currentUser.id })
+        });
+        if (res.ok) {
+          loadAppointments();
+          loadNotifications();
+        }
+      } catch (err) {
+        console.error("Error cancelling appointment:", err);
+      }
+    }
+
+    // Prompt Payment
+    function promptPayment(apptId, subject, tutorName, amount) {
+      document.getElementById('payApptId').value = apptId;
+      document.getElementById('payAmountVal').value = amount;
+      document.getElementById('payApptSubject').innerText = subject;
+      document.getElementById('payTutorName').innerText = tutorName;
+      document.getElementById('payAmount').innerText = `$${amount}.00`;
+      openPaymentModal();
+    }
+
+    // Submit Payment Processing
+    async function submitPaymentProcessing(e) {
+      e.preventDefault();
+      const appointment_id = document.getElementById('payApptId').value;
+      const amount = document.getElementById('payAmountVal').value;
+      const payment_method = document.getElementById('payMethod').value;
+
+      try {
+        const res = await fetch('/api/payments/pay', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            appointment_id,
+            student_id: currentUser.id,
+            amount,
+            payment_method
+          })
+        });
+
+        if (res.ok) {
+          closePaymentModal();
+          navigateTo('payments');
+          loadNotifications();
+        }
+      } catch (err) {
+        console.error("Payment error:", err);
+      }
+    }
+
+    // Load Payments
+    async function loadPayments() {
+      const container = document.getElementById('paymentsList');
+      try {
+        const res = await fetch(`/api/payments?student_id=${currentUser.id}`);
+        const data = await res.json();
+        const payments = data.payments || [];
+
+        if (payments.length === 0) {
+          container.innerHTML = `<p class="text-sm text-slate-400 text-center py-6">No payments processed yet.</p>`;
+          return;
+        }
+
+        container.innerHTML = payments.map(p => `
+          <div class="glass-card p-4 rounded-xl border border-slate-700 flex items-center justify-between">
+            <div class="space-y-1">
+              <div class="flex items-center space-x-2">
+                <span class="font-bold text-white text-sm">${p.subject}</span>
+                <span class="text-xs text-indigo-400 font-semibold">with ${p.tutor_name}</span>
+              </div>
+              <p class="text-xs text-slate-400">TXN ID: <span class="text-slate-200 font-mono">${p.transaction_id}</span> &nbsp;|&nbsp; ${p.payment_method}</p>
+            </div>
+            <div class="text-right">
+              <span class="text-base font-black text-emerald-400">+$${p.amount}.00</span>
+              <span class="block text-[10px] text-slate-400">${new Date(p.created_at).toLocaleDateString()}</span>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error("Error loading payments:", err);
+      }
+    }
+
+    // Load Admin Reports
+    async function loadAdminReports() {
+      try {
+        const res = await fetch('/api/admin/reports');
+        const data = await res.json();
+        const { metrics, recentActivity } = data;
+
+        document.getElementById('metricStudents').innerText = metrics.totalStudents || 0;
+        document.getElementById('metricTutors').innerText = metrics.totalTutors || 0;
+        document.getElementById('metricSessions').innerText = metrics.totalSessions || 0;
+        document.getElementById('metricRevenue').innerText = `$${metrics.totalRevenue || 0}`;
+
+        const tableBody = document.getElementById('activityLogsBody');
+        tableBody.innerHTML = recentActivity.map(log => `
+          <tr class="hover:bg-slate-800/50">
+            <td class="p-3 text-xs text-slate-400 whitespace-nowrap">${new Date(log.timestamp).toLocaleString()}</td>
+            <td class="p-3 text-xs font-bold text-indigo-400 whitespace-nowrap">${log.action}</td>
+            <td class="p-3 text-xs text-slate-300">${log.details}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error("Error loading admin reports:", err);
+      }
+    }
+
+    // Load Notifications
+    async function loadNotifications() {
+      try {
+        const res = await fetch(`/api/notifications/user/${currentUser.id}`);
+        const data = await res.json();
+        const notifications = data.notifications || [];
+
+        const unreadCount = notifications.filter(n => !n.is_read).length;
+        const badge = document.getElementById('notifBadge');
+        const notifCountText = document.getElementById('notifCountText');
+
+        if (unreadCount > 0) {
+          badge.innerText = unreadCount;
+          badge.classList.remove('hidden');
+          badge.classList.add('flex');
+          notifCountText.innerText = `${unreadCount} unread`;
+        } else {
+          badge.classList.add('hidden');
+          badge.classList.remove('flex');
+          notifCountText.innerText = `0 unread`;
+        }
+
+        const notifList = document.getElementById('notifList');
+        if (notifications.length === 0) {
+          notifList.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">No notifications yet.</p>`;
+          return;
+        }
+
+        notifList.innerHTML = notifications.map(n => `
+          <div class="p-2.5 rounded-xl ${n.is_read ? 'bg-slate-800/40' : 'bg-indigo-900/20 border border-indigo-500/30'} space-y-1">
+            <h5 class="text-xs font-bold text-white flex justify-between">
+              <span>${n.title}</span>
+              <span class="text-[9px] text-slate-400 font-normal">${new Date(n.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+            </h5>
+            <p class="text-[11px] text-slate-300 leading-snug">${n.message}</p>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error("Error loading notifications:", err);
+      }
+    }
+
+    function toggleNotificationMenu() {
+      document.getElementById('notifDropdown').classList.toggle('hidden');
+    }
+
+    // AI Chatbot Functions
+    function toggleChatbotWindow() {
+      document.getElementById('chatbotWindow').classList.toggle('hidden');
+    }
+
+    function openChatbot() {
+      document.getElementById('chatbotWindow').classList.remove('hidden');
+    }
+
+    function sendQuickPrompt(promptText) {
+      document.getElementById('chatInput').value = promptText;
+      submitChatMessage();
+    }
+
+    async function submitChatMessage(e) {
+      if (e) e.preventDefault();
+      const input = document.getElementById('chatInput');
+      const message = input.value.trim();
+      if (!message) return;
+
+      input.value = '';
+      appendChatMessage('user', message);
+
+      try {
+        const res = await fetch('/api/chatbot/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message })
+        });
+        const data = await res.json();
+        appendChatMessage('assistant', data.reply, data.recommendedTutors);
+
+        if (data.action === 'NAVIGATE_SCHEDULE') navigateTo('schedule');
+        if (data.action === 'NAVIGATE_PAYMENTS') navigateTo('payments');
+      } catch (err) {
+        console.error("Chatbot error:", err);
+      }
+    }
+
+    function appendChatMessage(sender, text, recommendedTutors) {
+      const container = document.getElementById('chatMessages');
+      const isUser = sender === 'user';
+
+      let messageHtml = `
+        <div class="flex items-start space-x-2 ${isUser ? 'flex-row-reverse space-x-reverse' : ''}">
+          <div class="w-7 h-7 rounded-full ${isUser ? 'bg-purple-600' : 'bg-indigo-500/20 text-indigo-400'} flex items-center justify-center font-bold text-xs flex-shrink-0">
+            <i class="fa-solid ${isUser ? 'fa-user' : 'fa-robot'}"></i>
+          </div>
+          <div class="${isUser ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-200 border border-slate-700'} p-3 rounded-2xl ${isUser ? 'rounded-tr-none' : 'rounded-tl-none'} max-w-[85%] leading-relaxed">
+            ${text.replace(/\n/g, '<br>')}
+
+            ${recommendedTutors && recommendedTutors.length > 0 ? `
+              <div class="mt-3 space-y-2">
+                ${recommendedTutors.map(t => `
+                  <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-700 flex items-center justify-between gap-2">
+                    <div>
+                      <div class="font-bold text-white">${t.name}</div>
+                      <div class="text-[10px] text-indigo-400">${t.subjects} (${t.rate})</div>
+                    </div>
+                    <button onclick="quickBookTutor(${t.id}, '${t.name}')" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-[10px]">
+                      Book
+                    </button>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+
+      container.insertAdjacentHTML('beforeend', messageHtml);
+      container.scrollTop = container.scrollHeight;
+    }
+  </script>
+</body>
+</html>
