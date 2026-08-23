@@ -1,0 +1,15 @@
+# Flutter / Dart build artifacts
+.dart_tool/
+.packages
+build/
+.pub-cache/
+.pub/
+
+# IDE files
+.idea/
+*.iml
+*.iws
+.vscode/
+
+# OS files
+.DS_Store
