@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkyCast - Ultimate Weather Forecast</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Chart.js for beautiful graphs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Custom glassy styling and gradients */
+    body {
+      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .glass-card {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .glass-input {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #f8fafc;
+    }
+    .glass-input:focus {
+      border-color: #6366f1;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4);
+    }
+    /* Hide scrollbars but keep functionality */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Feature 4: Browse by Country Styles (.cb-*) */
+    .cb-panel {
+      background-color: #0f1420;
+      color: #e6e9f5;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      border-radius: 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+    }
+    .cb-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .cb-title {
+      font-size: 17px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin: 0;
+      color: #ffffff;
+    }
+    .cb-badge {
+      font-size: 12px;
+      font-weight: 600;
+      color: #b9b3ff;
+      background-color: #2a2650;
+      border: 1px solid #4a42a8;
+      border-radius: 6px;
+      padding: 4px 8px;
+    }
+    .cb-intro {
+      font-size: 14px;
+      line-height: 1.5;
+      color: #9aa4c4;
+      margin: 0;
+    }
+    .cb-search {
+      height: 44px;
+      padding: 0 14px;
+      background-color: #1a2033;
+      border: 1px solid #2a3350;
+      border-radius: 10px;
+      color: #e6e9f5;
+      font-size: 15px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .cb-list {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      max-height: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .cb-list::-webkit-scrollbar {
+      width: 6px;
+    }
+    .cb-list::-webkit-scrollbar-track {
+      background: #151b2d;
+      border-radius: 4px;
+    }
+    .cb-list::-webkit-scrollbar-thumb {
+      background: #4a42a8;
+      border-radius: 4px;
+    }
+    .cb-list::-webkit-scrollbar-thumb:hover {
+      background: #5b4fe9;
+    }
+    .cb-country-card {
+      background-color: #1a2033;
+      border: 1px solid #2a3350;
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .cb-country-btn {
+      min-height: 48px;
+      padding: 12px 14px;
+      gap: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      background: transparent;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      text-align: left;
+      width: 100%;
+      cursor: pointer;
+      color: #e6e9f5;
+    }
+    .cb-code-chip {
+      font-size: 11px;
+      font-weight: 700;
+      color: #b9b3ff;
+      background-color: #2a2650;
+      border-radius: 4px;
+      padding: 3px 6px;
+      letter-spacing: 0.05em;
+      flex-shrink: 0;
+    }
+    .cb-country-name {
+      flex-grow: 1;
+      margin-right: auto;
+    }
+    .cb-count-text {
+      font-size: 12px;
+      font-weight: 500;
+      color: #9aa4c4;
+      flex-shrink: 0;
+    }
+    .cb-chevron {
+      color: #9aa4c4;
+      flex-shrink: 0;
+      transition: transform 200ms ease;
+    }
+    .cb-chevron.cb-open {
+      transform: rotate(90deg);
+    }
+    .cb-country-body {
+      padding: 8px;
+      gap: 4px;
+      border-top: 1px solid #2a3350;
+      display: flex;
+      flex-direction: column;
+    }
+    .cb-region-btn {
+      min-height: 44px;
+      padding: 10px 12px;
+      gap: 10px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      background-color: transparent;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      text-align: left;
+      width: 100%;
+      cursor: pointer;
+      color: #e6e9f5;
+    }
+    .cb-region-btn.cb-region-open {
+      background-color: #232b44;
+    }
+    .cb-region-name {
+      flex-grow: 1;
+      margin-right: auto;
+    }
+    .cb-city-list {
+      padding: 2px 0 6px 14px;
+      gap: 2px;
+      display: flex;
+      flex-direction: column;
+    }
+    .cb-city-btn {
+      min-height: 44px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      border: none;
+      background-color: transparent;
+      cursor: pointer;
+      text-align: left;
+      color: #e6e9f5;
+    }
+    .cb-city-btn .cb-city-coords {
+      font-size: 12px;
+      color: #9aa4c4;
+      flex-shrink: 0;
+    }
+    .cb-city-btn.cb-selected {
+      background-color: #5b4fe9;
+      color: #ffffff;
+    }
+    .cb-city-btn.cb-selected .cb-city-coords {
+      color: #e4e1ff;
+    }
+    .cb-show-more-btn {
+      min-height: 44px;
+      padding: 10px 12px;
+      border: 1px solid #4a42a8;
+      border-radius: 8px;
+      background-color: transparent;
+      color: #b9b3ff;
+      font-size: 14px;
+      font-weight: 600;
+      width: 100%;
+      cursor: pointer;
+      margin-top: 4px;
+      text-align: center;
+    }
+    .cb-summary {
+      background-color: #1a2033;
+      border: 1px solid #2a3350;
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .cb-summary-left {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .cb-summary-hint {
+      font-size: 12px;
+      color: #9aa4c4;
+    }
+    .cb-summary-label {
+      font-size: 15px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+    .cb-summary-coords {
+      font-size: 12px;
+      color: #9aa4c4;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .cb-message {
+      text-align: center;
+      font-size: 14px;
+      color: #9aa4c4;
+      padding: 24px 8px;
+    }
+    .cb-message-error {
+      color: #ffb4a8;
+    }
+    .cb-capped-note {
+      font-size: 13px;
+      color: #9aa4c4;
+      padding: 8px;
+      text-align: center;
+    }
+    button:focus-visible, input:focus-visible {
+      outline: 2px solid #8b84ff;
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col pb-12">
+
+  <!-- Header -->
+  <header class="w-full py-6 px-4 md:px-8 border-b border-slate-800 glass-card sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="bg-indigo-600 p-2.5 rounded-xl shadow-lg shadow-indigo-500/30 flex items-center justify-center">
+          <i class="fa-solid fa-cloud-sun-rain text-2xl text-white"></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+            SkyCast <span class="text-xs bg-indigo-500/20 text-indigo-400 font-semibold px-2 py-0.5 rounded-full border border-indigo-500/30">Pro</span>
+          </h1>
+          <p class="text-xs text-slate-400">Hyper-local weather forecasting platform</p>
+        </div>
+      </div>
+
+      <!-- Temperature Toggle Unit -->
+      <div class="flex items-center gap-2 bg-slate-800/80 p-1 rounded-xl border border-slate-700">
+        <button id="toggle-c" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 bg-indigo-600 text-white shadow-md shadow-indigo-500/20">
+          °C (Metric)
+        </button>
+        <button id="toggle-f" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 text-slate-400 hover:text-slate-200">
+          °F (Imperial)
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Header Section -->
+  <section id="hero-header" class="w-full mt-6 px-4 md:px-8">
+    <div class="max-w-7xl mx-auto rounded-3xl overflow-hidden relative shadow-2xl shadow-indigo-950/40 glass-card border border-indigo-500/20">
+      <!-- Background Graphic Accents -->
+      <div class="absolute -right-20 -bottom-20 w-80 h-80 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -left-10 -top-10 w-60 h-60 bg-violet-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="relative px-6 py-10 md:p-12 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 z-10">
+        <div class="flex flex-col gap-3 max-w-2xl">
+          <span class="text-xs bg-indigo-500/20 text-indigo-300 px-3.5 py-1 rounded-full border border-indigo-500/30 font-bold uppercase tracking-widest w-fit animate-pulse">
+            <i class="fa-solid fa-satellite-dish mr-1"></i> Live Atmospheric Intel
+          </span>
+          <h2 class="text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
+            Explore the atmosphere with <span class="bg-gradient-to-r from-indigo-400 via-purple-300 to-pink-400 bg-clip-text text-transparent">SkyCast</span>
+          </h2>
+          <p class="text-slate-300 text-sm md:text-base leading-relaxed">
+            Uncover continuous meteorological trends, high-definition temperature curves, and precise 7-day predictive mapping powered by open science. Select any day card below to instantly sync the 24-hour temperature curve!
+          </p>
+        </div>
+
+        <!-- Dynamic Destination Card inside Hero -->
+        <div class="flex items-center gap-4 bg-slate-900/60 p-4 rounded-2xl border border-slate-700/50 shadow-inner w-full md:w-auto min-w-[240px]">
+          <div class="bg-gradient-to-br from-indigo-500 to-violet-600 p-3.5 rounded-xl text-white shadow-lg flex items-center justify-center">
+            <i class="fa-solid fa-map-location-dot text-xl"></i>
+          </div>
+          <div>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Active Forecast</p>
+            <h4 id="hero-city" class="text-base font-bold text-white mt-0.5">City of Koronadal, Philippines</h4>
+            <p id="hero-coords" class="text-xs text-indigo-300 font-medium mt-0.5">6.5018°N, 124.9219°E</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl w-full mx-auto px-4 md:px-8 mt-8 flex-grow grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+    <!-- Left Sidebar: Location & Controls -->
+    <section class="lg:col-span-4 flex flex-col gap-6">
+
+      <!-- Selector Card -->
+      <div class="glass-card rounded-2xl p-6 shadow-xl flex flex-col gap-5">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-magnifying-glass-location text-indigo-400"></i> Location settings
+        </h2>
+
+        <!-- Preset dropdown -->
+        <div class="flex flex-col gap-2">
+          <label for="city-select" class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Quick Select City</label>
+          <div class="relative">
+            <select id="city-select" class="w-full glass-input rounded-xl px-4 py-3 appearance-none cursor-pointer text-slate-200">
+              <option value="custom" class="bg-slate-900">-- Custom Coordinates --</option>
+
+              <optgroup label="Philippines - Mindanao" class="bg-slate-900 text-amber-400 font-semibold">
+                <option value="6.5018,124.9219" class="bg-slate-900 text-slate-100" selected>City of Koronadal, Philippines</option>
+                <option value="7.0707,125.6087" class="bg-slate-900 text-slate-100">Davao City</option>
+                <option value="8.4542,124.6319" class="bg-slate-900 text-slate-100">Cagayan de Oro</option>
+                <option value="6.9214,122.079" class="bg-slate-900 text-slate-100">Zamboanga City</option>
+                <option value="8.9475,125.5406" class="bg-slate-900 text-slate-100">Butuan City</option>
+              </optgroup>
+
+              <optgroup label="Global Cities" class="bg-slate-900 text-indigo-300 font-semibold">
+                <option value="52.52,13.41" class="bg-slate-900 text-slate-100">Berlin, Germany</option>
+                <option value="40.7128,-74.006" class="bg-slate-900 text-slate-100">New York, USA</option>
+                <option value="35.6762,139.6503" class="bg-slate-900 text-slate-100">Tokyo, Japan</option>
+                <option value="51.5074,-0.1278" class="bg-slate-900 text-slate-100">London, UK</option>
+                <option value="48.8566,2.3522" class="bg-slate-900 text-slate-100">Paris, France</option>
+                <option value="-33.8688,151.2093" class="bg-slate-900 text-slate-100">Sydney, Australia</option>
+                <option value="30.0444,31.2357" class="bg-slate-900 text-slate-100">Cairo, Egypt</option>
+              </optgroup>
+
+              <optgroup label="Philippines - Luzon" class="bg-slate-900 text-amber-400 font-semibold">
+                <option value="14.5995,120.9842" class="bg-slate-900 text-slate-100">Manila (Capital)</option>
+                <option value="16.4023,120.596" class="bg-slate-900 text-slate-100">Baguio City</option>
+                <option value="9.7392,118.7353" class="bg-slate-900 text-slate-100">Puerto Princesa (Palawan)</option>
+                <option value="13.1392,123.7438" class="bg-slate-900 text-slate-100">Legazpi City (Mayon)</option>
+              </optgroup>
+
+              <optgroup label="Philippines - Visayas" class="bg-slate-900 text-amber-400 font-semibold">
+                <option value="10.3157,123.8854" class="bg-slate-900 text-slate-100">Cebu City</option>
+                <option value="10.7202,122.5621" class="bg-slate-900 text-slate-100">Iloilo City</option>
+                <option value="11.2444,124.9985" class="bg-slate-900 text-slate-100">Tacloban City</option>
+                <option value="9.65,123.85" class="bg-slate-900 text-slate-100">Tagbilaran City (Bohol)</option>
+              </optgroup>
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+              <i class="fa-solid fa-chevron-down text-xs"></i>
+            </div>
+          </div>
+        </div>
+
+        <div class="relative flex py-2 items-center">
+          <div class="flex-grow border-t border-slate-800"></div>
+          <span class="flex-shrink mx-4 text-slate-500 text-xs font-bold uppercase">or entry manual coordinates</span>
+          <div class="flex-grow border-t border-slate-800"></div>
+        </div>
+
+        <!-- Custom Coordinate inputs -->
+        <div class="grid grid-cols-2 gap-4">
+          <div class="flex flex-col gap-2">
+            <label for="lat-input" class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Latitude</label>
+            <input type="number" id="lat-input" step="any" min="-90" max="90" value="6.5018" class="w-full glass-input rounded-xl px-4 py-2.5 text-sm" placeholder="e.g. 6.50">
+          </div>
+          <div class="flex flex-col gap-2">
+            <label for="lon-input" class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Longitude</label>
+            <input type="number" id="lon-input" step="any" min="-180" max="180" value="124.9219" class="w-full glass-input rounded-xl px-4 py-2.5 text-sm" placeholder="e.g. 124.92">
+          </div>
+        </div>
+
+        <button id="fetch-btn" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-indigo-600/20 active:scale-[0.98] transition-all duration-200">
+          Get Weather Report
+        </button>
+      </div>
+
+      <!-- Feature 4: Browse by Country Panel -->
+      <section id="country-browser" class="cb-panel" aria-label="Browse by country">
+        <div class="cb-header">
+          <h2 class="cb-title">Browse by Country</h2>
+          <span class="cb-badge">Feature 4</span>
+        </div>
+        <p class="cb-intro">Every country, province or region, and city in the world. Pick one to load its forecast.</p>
+        <input id="cb-search" class="cb-search" type="search" aria-label="Search country, province or city" placeholder="Search country, province or city">
+        <div id="cb-list" class="cb-list"></div>
+        <div class="cb-summary">
+          <div class="cb-summary-left">
+            <span class="cb-summary-hint">Showing forecast for</span>
+            <span id="cb-summary-label" class="cb-summary-label">No city selected</span>
+          </div>
+          <span id="cb-summary-coords" class="cb-summary-coords"></span>
+        </div>
+      </section>
+
+      <!-- Quick Info Card -->
+      <div class="glass-card rounded-2xl p-6 shadow-xl flex flex-col gap-4">
+        <h3 class="text-sm font-bold text-white uppercase tracking-wider text-slate-400">About Open-Meteo</h3>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          SkyCast is powered by the Open-Meteo API, offering open-source weather forecasts without API keys. This dashboard presents current temperatures, detailed 24-hour hourly projections, and WMO-standardized daily forecasts.
+        </p>
+        <div class="flex items-center gap-2 mt-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
+          <span class="text-xs text-slate-400">API Connection Active</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Content: Weather Details -->
+    <section class="lg:col-span-8 flex flex-col gap-6">
+
+      <!-- Error Message Box -->
+      <div id="error-banner" class="hidden glass-card border-red-500/50 bg-red-950/30 p-4 rounded-xl flex items-center gap-3 text-red-200 text-sm">
+        <i class="fa-solid fa-triangle-exclamation text-lg text-red-400"></i>
+        <div>
+          <span class="font-bold">Error:</span> <span id="error-message">Something went wrong while retrieving weather details.</span>
+        </div>
+      </div>
+
+      <!-- Loading skeleton / spinner -->
+      <div id="loading-spinner" class="hidden glass-card rounded-2xl p-12 flex flex-col items-center justify-center gap-4 text-center min-h-[400px]">
+        <div class="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-slate-400 font-medium">Fetching meteorology readings...</p>
+      </div>
+
+      <!-- Main Weather Dashboard Display -->
+      <div id="weather-dashboard" class="flex flex-col gap-6">
+
+        <!-- Current & Key Metrics Row -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+
+          <!-- Current Temp Primary Card -->
+          <div class="md:col-span-7 glass-card rounded-2xl p-6 relative overflow-hidden flex flex-col justify-between min-h-[220px]">
+            <div class="absolute -right-8 -top-8 text-slate-700/20 text-9xl pointer-events-none font-bold">
+              <i id="bg-weather-icon" class="fa-solid fa-sun"></i>
+            </div>
+
+            <div class="flex justify-between items-start">
+              <div>
+                <span class="text-xs bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-full border border-indigo-500/20 font-semibold" id="weather-city-label">City of Koronadal, Philippines</span>
+                <p class="text-xs text-slate-400 mt-2 flex items-center gap-1">
+                  <i class="fa-solid fa-clock"></i> <span id="weather-current-time">-- : --</span>
+                </p>
+              </div>
+              <div class="text-indigo-400 text-3xl font-light" id="current-weather-icon-wrapper">
+                <i id="current-weather-icon" class="fa-solid fa-sun animate-bounce"></i>
+              </div>
+            </div>
+
+            <div class="my-4">
+              <div class="flex items-baseline">
+                <span class="text-6xl font-extrabold text-white tracking-tight" id="current-temp">--</span>
+                <span class="text-3xl font-bold text-slate-300 ml-1" id="current-unit">°C</span>
+              </div>
+              <p class="text-lg font-semibold text-slate-200 mt-1" id="current-weather-desc">Sunny</p>
+            </div>
+
+            <div class="flex justify-between border-t border-slate-800/80 pt-4 mt-2 text-xs text-slate-400">
+              <div>
+                <span>Lat: </span><span class="font-semibold text-slate-300" id="current-lat">6.5018</span>
+              </div>
+              <div>
+                <span>Lon: </span><span class="font-semibold text-slate-300" id="current-lon">124.9219</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Highlight Metric Stats -->
+          <div class="md:col-span-5 grid grid-cols-2 gap-4">
+
+            <div class="glass-card rounded-2xl p-5 flex flex-col justify-between">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400 uppercase">Temp Range</span>
+                <i class="fa-solid fa-temperature-half text-rose-400"></i>
+              </div>
+              <div>
+                <p class="text-xl font-bold text-white mt-3" id="stat-temp-range">-- / --</p>
+                <p class="text-[10px] text-slate-400 mt-1">Today's min / max</p>
+              </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-5 flex flex-col justify-between">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400 uppercase">WMO Code</span>
+                <i class="fa-solid fa-circle-info text-blue-400"></i>
+              </div>
+              <div>
+                <p class="text-xl font-bold text-white mt-3" id="stat-wmo-code">--</p>
+                <p class="text-[10px] text-slate-400 mt-1" id="stat-wmo-label">Code description</p>
+              </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-5 flex flex-col justify-between">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400 uppercase">Hourly Peak</span>
+                <i class="fa-solid fa-arrow-trend-up text-amber-400"></i>
+              </div>
+              <div>
+                <p class="text-xl font-bold text-white mt-3" id="stat-hourly-peak">--</p>
+                <p class="text-[10px] text-slate-400 mt-1">Highest next 24h</p>
+              </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-5 flex flex-col justify-between">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400 uppercase">Hourly Low</span>
+                <i class="fa-solid fa-arrow-trend-down text-cyan-400"></i>
+              </div>
+              <div>
+                <p class="text-xl font-bold text-white mt-3" id="stat-hourly-low">--</p>
+                <p class="text-[10px] text-slate-400 mt-1">Lowest next 24h</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Hourly forecast chart card -->
+        <div class="glass-card rounded-2xl p-6 shadow-xl">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-chart-line text-indigo-400"></i> <span id="hourly-chart-title">24-Hour Temperature Curve</span>
+            </h3>
+            <span class="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-medium">Hourly Forecast</span>
+          </div>
+          <div class="relative h-[250px] w-full">
+            <canvas id="hourlyChart"></canvas>
+          </div>
+        </div>
+
+        <!-- 7-Day Forecast card -->
+        <div class="glass-card rounded-2xl p-6 shadow-xl">
+          <h3 class="text-base font-bold text-white flex items-center gap-2 mb-6">
+            <i class="fa-solid fa-calendar-days text-indigo-400"></i> 7-Day General Forecast
+          </h3>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4" id="daily-forecast-container">
+            <!-- 7 Days populated by JS -->
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- JS implementation scripts -->
+  <script src="app.js"></script>
+  <script src="js/country-browser.js" defer></script>
+</body>
+</html>
