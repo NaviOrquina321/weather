@@ -40,6 +40,36 @@
       -ms-overflow-style: none;
       scrollbar-width: none;
     }
+
+    /* Custom Scrollbar for Browse by Country list */
+    .scroll-list {
+      padding-right: 6px;
+      scrollbar-width: thin;
+      scrollbar-color: #4a42a8 #151b2d;
+    }
+    .scroll-list::-webkit-scrollbar {
+      width: 10px;
+    }
+    .scroll-list::-webkit-scrollbar-track {
+      background-color: #151b2d;
+      border-radius: 9999px;
+    }
+    .scroll-list::-webkit-scrollbar-thumb {
+      background-color: #4a42a8;
+      border-radius: 9999px;
+      border: 2px solid #151b2d;
+    }
+    .scroll-list::-webkit-scrollbar-thumb:hover {
+      background-color: #5b4fe9;
+    }
+
+    /* Accordion chevron animation */
+    .accordion-chevron {
+      transition: transform 200ms ease-in-out;
+    }
+    .accordion-chevron.expanded {
+      transform: rotate(90deg);
+    }
   </style>
 </head>
 <body class="text-slate-100 min-h-screen flex flex-col pb-12">
@@ -181,6 +211,53 @@
         <button id="fetch-btn" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-indigo-600/20 active:scale-[0.98] transition-all duration-200 text-sm flex items-center justify-center gap-2">
           <i class="fa-solid fa-rotate"></i> Get Weather Report
         </button>
+
+        <!-- Browse by Country 3-Level Accordion Section -->
+        <div class="pt-4 border-t border-slate-800 flex flex-col gap-3">
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-globe text-indigo-400"></i> Browse by Country
+            </h4>
+            <span class="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/30 font-semibold">Worldwide</span>
+          </div>
+
+          <!-- Accordion Search Filter -->
+          <div class="relative">
+            <input type="text" id="world-search-input" class="w-full glass-input rounded-xl pl-9 pr-8 py-2 text-xs" placeholder="Filter countries, regions, cities...">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <i class="fa-solid fa-filter text-[10px]"></i>
+            </div>
+            <button id="clear-world-search-btn" class="hidden absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-white">
+              <i class="fa-solid fa-xmark text-xs"></i>
+            </button>
+          </div>
+
+          <!-- Notice banner when search results are capped -->
+          <div id="world-capped-notice" class="hidden text-[11px] text-amber-300/90 bg-amber-950/30 border border-amber-500/30 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
+            <i class="fa-solid fa-circle-info text-amber-400 text-xs"></i>
+            <span>Showing the top matches. Keep typing to narrow it down.</span>
+          </div>
+
+          <!-- Scrollable Accordion Container -->
+          <div id="world-accordion-container" class="scroll-list max-h-80 overflow-y-auto flex flex-col gap-1 pr-1">
+            <!-- Accordion items loaded dynamically via JS -->
+            <div id="world-loading" class="py-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+              <i class="fa-solid fa-spinner animate-spin text-indigo-400"></i> Loading location database...
+            </div>
+          </div>
+
+          <!-- Summary card at bottom of Browse by Country -->
+          <div id="world-summary-card" class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-[11px] text-slate-300 flex flex-col gap-1">
+            <span class="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Selected Location</span>
+            <div id="world-summary-text" class="font-semibold text-white">
+              City of Koronadal, South Cotabato, Philippines
+            </div>
+            <div id="world-summary-coords" class="text-[10px] text-indigo-300 font-mono">
+              6.49°N, 124.89°E
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <!-- Feature 5: Weather Model Comparison Switcher -->

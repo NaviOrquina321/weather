@@ -15,6 +15,19 @@ const MODEL_GFS = 0;
 const MODEL_ECMWF = 1;
 const MODEL_ICON = 2;
 
+// Named Constants for World Multi-Dimensional Array Structures
+// world[countryIndex][provinceIndex][cityIndex]
+const COUNTRY_ISO2 = 0;
+const COUNTRY_NAME = 1;
+const COUNTRY_PROVINCES = 2;
+
+const PROVINCE_NAME = 0;
+const PROVINCE_CITIES = 1;
+
+const CITY_NAME = 0;
+const CITY_LAT = 1;
+const CITY_LON = 2;
+
 const MODEL_NAMES = {
   [MODEL_GFS]: "gfs_seamless",
   [MODEL_ECMWF]: "ecmwf_ifs025",
@@ -33,6 +46,10 @@ let weatherMatrix = [];
 
 // modelMatrix: 3D Matrix -> [modelIndex (0..2)][timeIndex (0..167)][metricIndex]
 let modelMatrix = [];
+
+// world: 3D Multi-Dimensional Data Array
+// world[cIdx][pIdx][ciIdx] = [cityName, lat, lon]
+let world = [];
 
 // WMO Weather Codes map to descriptions, icons, and background types
 const wmoWeatherCodes = {
@@ -70,7 +87,7 @@ function getWMOInfo(code) {
   return wmoWeatherCodes[code] || { label: `Unknown code (${code})`, icon: "fa-circle-question", color: "text-slate-400" };
 }
 
-// Preset Preset Cities for quick reference
+// Preset Cities for quick reference
 const presetCities = {
   "52.52,13.41": "Berlin, Germany",
   "51.5074,-0.1278": "London, UK",
@@ -94,6 +111,18 @@ let weatherData = null;
 let hourlyChartInstance = null;
 let selectedDayIndex = 0; // 0 to 6 representing forecast days
 let searchDebounceTimer = null;
+
+// Browse by Country Accordion State
+let expandedCountryIndex = null;
+let expandedProvinceIndex = null;
+let cityPaginationLimits = {}; // key: "cIdx-pIdx" -> limit (default 100)
+let selectedWorldLocation = {
+  countryName: '',
+  provinceName: '',
+  cityName: '',
+  lat: null,
+  lon: null
+};
 
 // Convert Celsius to Fahrenheit
 function cToF(c) {
@@ -148,6 +177,14 @@ const elErrorMessage = document.getElementById('error-message');
 const elLoadingSpinner = document.getElementById('loading-spinner');
 const elWeatherDashboard = document.getElementById('weather-dashboard');
 const elModelDescCard = document.getElementById('model-desc-card');
+
+// World Accordion DOM Elements
+const elWorldSearchInput = document.getElementById('world-search-input');
+const elClearWorldSearchBtn = document.getElementById('clear-world-search-btn');
+const elWorldCappedNotice = document.getElementById('world-capped-notice');
+const elWorldAccordionContainer = document.getElementById('world-accordion-container');
+const elWorldSummaryText = document.getElementById('world-summary-text');
+const elWorldSummaryCoords = document.getElementById('world-summary-coords');
 
 // Helper to show/hide loader and errors
 function showLoading() {
@@ -381,6 +418,454 @@ async function fetchCitySuggestions(query) {
     elSearchSuggestions.classList.remove('hidden');
   } catch (err) {
     console.error("Geocoding search error:", err);
+  }
+}
+
+// ----------------------------------------------------
+// BROWSE BY COUNTRY ACCORDION FEATURE (3-LEVEL)
+// ----------------------------------------------------
+async function initWorldDatabase() {
+  try {
+    const response = await fetch('data/world.json');
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    world = await response.json();
+
+    // Default initial selection: Philippines -> South Cotabato -> City of Koronadal
+    selectDefaultLocation();
+  } catch (err) {
+    console.error("Failed to load world dataset:", err);
+    elWorldAccordionContainer.innerHTML = `
+      <div class="py-4 text-center text-xs text-rose-400 bg-rose-950/30 border border-rose-800/40 rounded-xl p-3">
+        <i class="fa-solid fa-triangle-exclamation mr-1"></i> Failed to load country location database.
+      </div>
+    `;
+  }
+}
+
+function selectDefaultLocation() {
+  let phIdx = world.findIndex(c => c[COUNTRY_ISO2] === 'PH' || c[COUNTRY_NAME].toLowerCase() === 'philippines');
+  if (phIdx === -1) phIdx = 0;
+
+  let scIdx = 0;
+  if (world[phIdx] && world[phIdx][COUNTRY_PROVINCES]) {
+    const foundScIdx = world[phIdx][COUNTRY_PROVINCES].findIndex(p => p[PROVINCE_NAME].toLowerCase().includes('south cotabato'));
+    if (foundScIdx !== -1) scIdx = foundScIdx;
+  }
+
+  let cityIdx = 0;
+  if (world[phIdx] && world[phIdx][COUNTRY_PROVINCES][scIdx] && world[phIdx][COUNTRY_PROVINCES][scIdx][PROVINCE_CITIES]) {
+    const foundCityIdx = world[phIdx][COUNTRY_PROVINCES][scIdx][PROVINCE_CITIES].findIndex(ci => ci[CITY_NAME].toLowerCase().includes('koronadal'));
+    if (foundCityIdx !== -1) cityIdx = foundCityIdx;
+  }
+
+  // Expand Philippines and South Cotabato
+  expandedCountryIndex = phIdx;
+  expandedProvinceIndex = scIdx;
+
+  if (world[phIdx] && world[phIdx][COUNTRY_PROVINCES][scIdx] && world[phIdx][COUNTRY_PROVINCES][scIdx][PROVINCE_CITIES][cityIdx]) {
+    const targetCity = world[phIdx][COUNTRY_PROVINCES][scIdx][PROVINCE_CITIES][cityIdx];
+    const cName = world[phIdx][COUNTRY_NAME];
+    const pName = world[phIdx][COUNTRY_PROVINCES][scIdx][PROVINCE_NAME];
+    const ciName = targetCity[CITY_NAME];
+    const lat = targetCity[CITY_LAT];
+    const lon = targetCity[CITY_LON];
+
+    selectedWorldLocation = {
+      countryName: cName,
+      provinceName: pName,
+      cityName: ciName,
+      lat: lat,
+      lon: lon
+    };
+
+    updateSummaryCard();
+    elLatInput.value = lat;
+    elLonInput.value = lon;
+    if (elCitySearchInput) elCitySearchInput.value = `${ciName}, ${pName}, ${cName}`;
+
+    fetchForecast(lat, lon, `${ciName}, ${cName}`);
+  }
+
+  renderWorldAccordion();
+}
+
+function updateSummaryCard() {
+  if (elWorldSummaryText) {
+    elWorldSummaryText.textContent = `${selectedWorldLocation.cityName}, ${selectedWorldLocation.provinceName}, ${selectedWorldLocation.countryName}`;
+  }
+  if (elWorldSummaryCoords) {
+    elWorldSummaryCoords.textContent = `${selectedWorldLocation.lat}°N, ${selectedWorldLocation.lon}°E`;
+  }
+}
+
+// Filter / Search logic for accordion
+if (elWorldSearchInput) {
+  elWorldSearchInput.addEventListener('input', (e) => {
+    const query = e.target.value;
+    if (query.length > 0) {
+      elClearWorldSearchBtn.classList.remove('hidden');
+    } else {
+      elClearWorldSearchBtn.classList.add('hidden');
+    }
+
+    renderWorldAccordion();
+  });
+
+  elClearWorldSearchBtn.addEventListener('click', () => {
+    elWorldSearchInput.value = '';
+    elClearWorldSearchBtn.classList.add('hidden');
+    renderWorldAccordion();
+  });
+}
+
+function renderWorldAccordion() {
+  if (!world || world.length === 0) return;
+
+  const searchQuery = (elWorldSearchInput ? elWorldSearchInput.value : '').trim().toLowerCase();
+  const isSearching = searchQuery.length >= 2;
+
+  elWorldAccordionContainer.innerHTML = '';
+
+  if (isSearching) {
+    renderFilteredAccordion(searchQuery);
+  } else {
+    if (elWorldCappedNotice) elWorldCappedNotice.classList.add('hidden');
+    renderNormalAccordion();
+  }
+}
+
+function renderNormalAccordion() {
+  world.forEach((country, cIdx) => {
+    const cIso2 = country[COUNTRY_ISO2];
+    const cName = country[COUNTRY_NAME];
+    const provinces = country[COUNTRY_PROVINCES] || [];
+    const isCountryExpanded = (expandedCountryIndex === cIdx);
+
+    const countryRow = document.createElement('div');
+    countryRow.className = "flex flex-col border-b border-slate-800/50 last:border-b-0";
+
+    const countryBtn = document.createElement('button');
+    countryBtn.type = 'button';
+    countryBtn.setAttribute('aria-expanded', isCountryExpanded ? 'true' : 'false');
+    countryBtn.className = `w-full py-2 px-2.5 rounded-lg text-left flex items-center justify-between transition-colors text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+      isCountryExpanded ? 'bg-indigo-950/50 text-indigo-300' : 'text-slate-200 hover:bg-slate-800/40'
+    }`;
+
+    countryBtn.innerHTML = `
+      <div class="flex items-center gap-2 truncate">
+        <i class="fa-solid fa-chevron-right text-[10px] text-slate-400 accordion-chevron ${isCountryExpanded ? 'expanded' : ''}" aria-hidden="true"></i>
+        <span class="truncate">${cName}</span>
+      </div>
+      <span class="text-[10px] text-slate-500 font-mono ml-2 flex-shrink-0">${provinces.length} region${provinces.length === 1 ? '' : 's'}</span>
+    `;
+
+    countryBtn.addEventListener('click', () => {
+      if (expandedCountryIndex === cIdx) {
+        expandedCountryIndex = null;
+        expandedProvinceIndex = null;
+      } else {
+        expandedCountryIndex = cIdx;
+        expandedProvinceIndex = null;
+      }
+      renderWorldAccordion();
+    });
+
+    countryRow.appendChild(countryBtn);
+
+    // Render Provinces if Country Expanded
+    if (isCountryExpanded) {
+      const provinceContainer = document.createElement('div');
+      provinceContainer.className = "pl-3.5 pr-1 py-1 flex flex-col gap-1 border-l-2 border-indigo-500/30 my-1 ml-3";
+
+      provinces.forEach((province, pIdx) => {
+        const pName = province[PROVINCE_NAME];
+        const cities = province[PROVINCE_CITIES] || [];
+        const isProvinceExpanded = (expandedProvinceIndex === pIdx);
+
+        const provinceRow = document.createElement('div');
+        provinceRow.className = "flex flex-col";
+
+        const provinceBtn = document.createElement('button');
+        provinceBtn.type = 'button';
+        provinceBtn.setAttribute('aria-expanded', isProvinceExpanded ? 'true' : 'false');
+        provinceBtn.className = `w-full py-1.5 px-2 rounded-lg text-left flex items-center justify-between transition-colors text-[11px] font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+          isProvinceExpanded ? 'bg-indigo-900/40 text-indigo-200' : 'text-slate-300 hover:bg-slate-800/40'
+        }`;
+
+        provinceBtn.innerHTML = `
+          <div class="flex items-center gap-1.5 truncate">
+            <i class="fa-solid fa-chevron-right text-[9px] text-slate-400 accordion-chevron ${isProvinceExpanded ? 'expanded' : ''}" aria-hidden="true"></i>
+            <span class="truncate">${pName}</span>
+          </div>
+          <span class="text-[9px] text-slate-500 font-mono ml-1.5 flex-shrink-0">${cities.length} cit${cities.length === 1 ? 'y' : 'ies'}</span>
+        `;
+
+        provinceBtn.addEventListener('click', () => {
+          if (expandedProvinceIndex === pIdx) {
+            expandedProvinceIndex = null;
+          } else {
+            expandedProvinceIndex = pIdx;
+          }
+          renderWorldAccordion();
+        });
+
+        provinceRow.appendChild(provinceBtn);
+
+        // Render Cities if Province Expanded
+        if (isProvinceExpanded) {
+          const cityContainer = document.createElement('div');
+          cityContainer.className = "pl-3 pr-1 py-1 flex flex-col gap-0.5 border-l border-slate-700/50 my-1 ml-2.5";
+
+          const pagKey = `${cIdx}-${pIdx}`;
+          const currentLimit = cityPaginationLimits[pagKey] || 100;
+          const visibleCities = cities.slice(0, currentLimit);
+
+          visibleCities.forEach((city, ciIdx) => {
+            const ciName = city[CITY_NAME];
+            const lat = city[CITY_LAT];
+            const lon = city[CITY_LON];
+
+            const isSelected = selectedWorldLocation.countryName === cName &&
+                               selectedWorldLocation.provinceName === pName &&
+                               selectedWorldLocation.cityName === ciName;
+
+            const cityBtn = document.createElement('button');
+            cityBtn.type = 'button';
+            cityBtn.className = `w-full py-1 px-2 rounded text-left flex items-center justify-between transition-colors text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+              isSelected ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+            }`;
+
+            cityBtn.innerHTML = `
+              <span class="truncate">${ciName}</span>
+              <span class="text-[9px] ${isSelected ? 'text-indigo-200' : 'text-slate-500'} font-mono ml-1 flex-shrink-0">${lat}°, ${lon}°</span>
+            `;
+
+            cityBtn.addEventListener('click', () => {
+              selectedWorldLocation = {
+                countryName: cName,
+                provinceName: pName,
+                cityName: ciName,
+                lat: lat,
+                lon: lon
+              };
+
+              updateSummaryCard();
+              elLatInput.value = lat;
+              elLonInput.value = lon;
+              if (elCitySearchInput) elCitySearchInput.value = `${ciName}, ${pName}, ${cName}`;
+
+              fetchForecast(lat, lon, `${ciName}, ${cName}`);
+              renderWorldAccordion();
+            });
+
+            cityContainer.appendChild(cityBtn);
+          });
+
+          // Show "Show 100 more" button if there are remaining cities
+          if (cities.length > currentLimit) {
+            const showMoreBtn = document.createElement('button');
+            showMoreBtn.type = 'button';
+            showMoreBtn.className = "w-full py-1 text-center text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold bg-indigo-950/40 hover:bg-indigo-900/50 rounded mt-1 transition-colors";
+            showMoreBtn.textContent = `Show 100 more (${cities.length - currentLimit} remaining)`;
+
+            showMoreBtn.addEventListener('click', () => {
+              cityPaginationLimits[pagKey] = currentLimit + 100;
+              renderWorldAccordion();
+            });
+
+            cityContainer.appendChild(showMoreBtn);
+          }
+
+          provinceRow.appendChild(cityContainer);
+        }
+
+        provinceContainer.appendChild(provinceRow);
+      });
+
+      countryRow.appendChild(provinceContainer);
+    }
+
+    elWorldAccordionContainer.appendChild(countryRow);
+  });
+}
+
+function renderFilteredAccordion(query) {
+  const MAX_COUNTRIES = 12;
+  const MAX_PROVINCES = 15;
+  const MAX_CITIES = 8;
+
+  let countryMatchesCount = 0;
+  let isCapped = false;
+  let hasAnyMatch = false;
+
+  for (let cIdx = 0; cIdx < world.length; cIdx++) {
+    const country = world[cIdx];
+    const cName = country[COUNTRY_NAME];
+    const provinces = country[COUNTRY_PROVINCES] || [];
+    const countryMatches = cName.toLowerCase().includes(query);
+
+    // Filter matching provinces and cities
+    const matchedProvinces = [];
+
+    for (let pIdx = 0; pIdx < provinces.length; pIdx++) {
+      const province = provinces[pIdx];
+      const pName = province[PROVINCE_NAME];
+      const cities = province[PROVINCE_CITIES] || [];
+      const provinceMatches = pName.toLowerCase().includes(query);
+
+      const matchedCities = [];
+      for (let ciIdx = 0; ciIdx < cities.length; ciIdx++) {
+        const city = cities[ciIdx];
+        const ciName = city[CITY_NAME];
+        if (countryMatches || provinceMatches || ciName.toLowerCase().includes(query)) {
+          matchedCities.push({ city, ciIdx });
+        }
+      }
+
+      if (countryMatches || provinceMatches || matchedCities.length > 0) {
+        matchedProvinces.push({
+          province,
+          pIdx,
+          matchedCities
+        });
+      }
+    }
+
+    if (countryMatches || matchedProvinces.length > 0) {
+      hasAnyMatch = true;
+      countryMatchesCount++;
+
+      if (countryMatchesCount > MAX_COUNTRIES) {
+        isCapped = true;
+        break;
+      }
+
+      // Render Country Row (Auto-Expanded)
+      const countryRow = document.createElement('div');
+      countryRow.className = "flex flex-col border-b border-slate-800/50 last:border-b-0";
+
+      const countryHeader = document.createElement('div');
+      countryHeader.className = "w-full py-2 px-2.5 rounded-lg text-left flex items-center justify-between text-xs font-semibold bg-indigo-950/50 text-indigo-300";
+
+      countryHeader.innerHTML = `
+        <div class="flex items-center gap-2 truncate">
+          <i class="fa-solid fa-chevron-right text-[10px] text-slate-400 accordion-chevron expanded" aria-hidden="true"></i>
+          <span class="truncate">${cName}</span>
+        </div>
+        <span class="text-[10px] text-slate-500 font-mono ml-2 flex-shrink-0">${provinces.length} region${provinces.length === 1 ? '' : 's'}</span>
+      `;
+
+      countryRow.appendChild(countryHeader);
+
+      const provinceContainer = document.createElement('div');
+      provinceContainer.className = "pl-3.5 pr-1 py-1 flex flex-col gap-1 border-l-2 border-indigo-500/30 my-1 ml-3";
+
+      let provinceCount = 0;
+      for (const pMatch of matchedProvinces) {
+        provinceCount++;
+        if (provinceCount > MAX_PROVINCES) {
+          isCapped = true;
+          break;
+        }
+
+        const province = pMatch.province;
+        const pIdx = pMatch.pIdx;
+        const pName = province[PROVINCE_NAME];
+        const allCities = province[PROVINCE_CITIES] || [];
+        const citiesToRender = pMatch.matchedCities;
+
+        const provinceRow = document.createElement('div');
+        provinceRow.className = "flex flex-col";
+
+        const provinceHeader = document.createElement('div');
+        provinceHeader.className = "w-full py-1.5 px-2 rounded-lg text-left flex items-center justify-between text-[11px] font-medium bg-indigo-900/40 text-indigo-200";
+
+        provinceHeader.innerHTML = `
+          <div class="flex items-center gap-1.5 truncate">
+            <i class="fa-solid fa-chevron-right text-[9px] text-slate-400 accordion-chevron expanded" aria-hidden="true"></i>
+            <span class="truncate">${pName}</span>
+          </div>
+          <span class="text-[9px] text-slate-500 font-mono ml-1.5 flex-shrink-0">${allCities.length} cit${allCities.length === 1 ? 'y' : 'ies'}</span>
+        `;
+
+        provinceRow.appendChild(provinceHeader);
+
+        const cityContainer = document.createElement('div');
+        cityContainer.className = "pl-3 pr-1 py-1 flex flex-col gap-0.5 border-l border-slate-700/50 my-1 ml-2.5";
+
+        let cityCount = 0;
+        for (const cMatch of citiesToRender) {
+          cityCount++;
+          if (cityCount > MAX_CITIES) {
+            isCapped = true;
+            break;
+          }
+
+          const city = cMatch.city;
+          const ciName = city[CITY_NAME];
+          const lat = city[CITY_LAT];
+          const lon = city[CITY_LON];
+
+          const isSelected = selectedWorldLocation.countryName === cName &&
+                             selectedWorldLocation.provinceName === pName &&
+                             selectedWorldLocation.cityName === ciName;
+
+          const cityBtn = document.createElement('button');
+          cityBtn.type = 'button';
+          cityBtn.className = `w-full py-1 px-2 rounded text-left flex items-center justify-between transition-colors text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+            isSelected ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+          }`;
+
+          cityBtn.innerHTML = `
+            <span class="truncate">${ciName}</span>
+            <span class="text-[9px] ${isSelected ? 'text-indigo-200' : 'text-slate-500'} font-mono ml-1 flex-shrink-0">${lat}°, ${lon}°</span>
+          `;
+
+          cityBtn.addEventListener('click', () => {
+            selectedWorldLocation = {
+              countryName: cName,
+              provinceName: pName,
+              cityName: ciName,
+              lat: lat,
+              lon: lon
+            };
+
+            updateSummaryCard();
+            elLatInput.value = lat;
+            elLonInput.value = lon;
+            if (elCitySearchInput) elCitySearchInput.value = `${ciName}, ${pName}, ${cName}`;
+
+            fetchForecast(lat, lon, `${ciName}, ${cName}`);
+            renderWorldAccordion();
+          });
+
+          cityContainer.appendChild(cityBtn);
+        }
+
+        provinceRow.appendChild(cityContainer);
+        provinceContainer.appendChild(provinceRow);
+      }
+
+      countryRow.appendChild(provinceContainer);
+      elWorldAccordionContainer.appendChild(countryRow);
+    }
+  }
+
+  if (!hasAnyMatch) {
+    elWorldAccordionContainer.innerHTML = `
+      <div class="py-6 text-center text-xs text-slate-400">
+        No matching country, province or city.
+      </div>
+    `;
+    if (elWorldCappedNotice) elWorldCappedNotice.classList.add('hidden');
+  } else {
+    if (isCapped && elWorldCappedNotice) {
+      elWorldCappedNotice.classList.remove('hidden');
+    } else if (elWorldCappedNotice) {
+      elWorldCappedNotice.classList.add('hidden');
+    }
   }
 }
 
@@ -684,9 +1169,7 @@ elFetchBtn.addEventListener('click', () => {
   fetchForecast(latVal, lonVal, matchedName);
 });
 
-// Initial Load: Fetch default (Berlin, Germany)
+// Initial Load: Fetch world database and default location
 window.addEventListener('DOMContentLoaded', () => {
-  const defaultLat = 52.52;
-  const defaultLon = 13.41;
-  fetchForecast(defaultLat, defaultLon, "Berlin, Germany");
+  initWorldDatabase();
 });
