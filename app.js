@@ -1,56 +1,3 @@
-// ====================================================
-// SkyCast Weather Analytics Engine
-// Multi-Dimensional Array Data Structures & Named Constants
-// ====================================================
-
-// Named Constants for Metric Indices in weatherMatrix[dayIndex][hourIndex][metricIndex]
-const METRIC_TEMP = 0;
-const METRIC_WMO = 1;
-const METRIC_WIND = 2;
-const METRIC_HUMIDITY = 3;
-const METRIC_PRECIP_PROB = 4;
-
-// Named Constants for Model Indices in modelMatrix[modelIndex][timeIndex][metric]
-const MODEL_GFS = 0;
-const MODEL_ECMWF = 1;
-const MODEL_ICON = 2;
-
-// Named Constants for World Multi-Dimensional Array Structures
-// world[countryIndex][provinceIndex][cityIndex]
-const COUNTRY_ISO2 = 0;
-const COUNTRY_NAME = 1;
-const COUNTRY_PROVINCES = 2;
-
-const PROVINCE_NAME = 0;
-const PROVINCE_CITIES = 1;
-
-const CITY_NAME = 0;
-const CITY_LAT = 1;
-const CITY_LON = 2;
-
-const MODEL_NAMES = {
-  [MODEL_GFS]: "gfs_seamless",
-  [MODEL_ECMWF]: "ecmwf_ifs025",
-  [MODEL_ICON]: "icon_seamless"
-};
-
-const MODEL_LABELS = {
-  gfs: { name: "GFS Seamless", provider: "NOAA (US)", index: MODEL_GFS },
-  ecmwf: { name: "ECMWF IFS", provider: "European Centre (EU)", index: MODEL_ECMWF },
-  icon: { name: "ICON Global", provider: "DWD (Germany)", index: MODEL_ICON }
-};
-
-// Global Multi-Dimensional Array Structures
-// weatherMatrix: 3D Matrix -> [dayIndex (0..6)][hourIndex (0..23)][metricIndex (0..4)]
-let weatherMatrix = [];
-
-// modelMatrix: 3D Matrix -> [modelIndex (0..2)][timeIndex (0..167)][metricIndex]
-let modelMatrix = [];
-
-// world: 3D Multi-Dimensional Data Array
-// world[cIdx][pIdx][ciIdx] = [cityName, lat, lon]
-let world = [];
-
 // WMO Weather Codes map to descriptions, icons, and background types
 const wmoWeatherCodes = {
   0: { label: "Clear sky", icon: "fa-sun", color: "text-amber-400" },
@@ -87,42 +34,12 @@ function getWMOInfo(code) {
   return wmoWeatherCodes[code] || { label: `Unknown code (${code})`, icon: "fa-circle-question", color: "text-slate-400" };
 }
 
-// Preset Cities for quick reference
-const presetCities = {
-  "52.52,13.41": "Berlin, Germany",
-  "51.5074,-0.1278": "London, UK",
-  "40.7128,-74.0060": "New York, USA",
-  "35.6762,139.6503": "Tokyo, Japan",
-  "48.8566,2.3522": "Paris, France",
-  "-33.8688,151.2093": "Sydney, Australia",
-  "1.3521,103.8198": "Singapore",
-  "14.5995,120.9842": "Manila, Philippines",
-  "10.3157,123.8854": "Cebu City, Philippines",
-  "7.1907,125.4553": "Davao City, Philippines",
-  "8.4542,124.6319": "Cagayan de Oro, Philippines",
-  "6.9214,122.079": "Zamboanga City, Philippines",
-  "8.9475,125.5406": "Butuan City, Philippines"
-};
-
 // Global Application State
 let currentUnit = 'C'; // 'C' or 'F'
-let selectedModelKey = 'gfs'; // 'gfs', 'ecmwf', 'icon'
 let weatherData = null;
 let hourlyChartInstance = null;
 let selectedDayIndex = 0; // 0 to 6 representing forecast days
-let searchDebounceTimer = null;
-
-// Browse by Country Accordion State
-let expandedCountryIndex = null;
-let expandedProvinceIndex = null;
-let cityPaginationLimits = {}; // key: "cIdx-pIdx" -> limit (default 100)
-let selectedWorldLocation = {
-  countryName: '',
-  provinceName: '',
-  cityName: '',
-  lat: null,
-  lon: null
-};
+let activeCityLabel = "City of Koronadal, Philippines";
 
 // Convert Celsius to Fahrenheit
 function cToF(c) {
@@ -132,24 +49,70 @@ function cToF(c) {
 // Format temperature value based on current selected unit
 function formatTemp(value) {
   if (value === null || value === undefined || isNaN(value)) return '--';
-  const val = currentUnit === 'C' ? value : cToF(value);
-  return `${val.toFixed(1)}°${currentUnit}`;
+  const displayVal = currentUnit === 'C' ? value : cToF(value);
+  return `${displayVal.toFixed(1)}°${currentUnit}`;
 }
 
-// DOM Elements
+// Map city names / presets
+const presetCities = {
+  "6.5018,124.9219": "City of Koronadal, Philippines",
+  "52.52,13.41": "Berlin, Germany",
+  "40.7128,-74.006": "New York, USA",
+  "35.6762,139.6503": "Tokyo, Japan",
+  "51.5074,-0.1278": "London, UK",
+  "48.8566,2.3522": "Paris, France",
+  "-33.8688,151.2093": "Sydney, Australia",
+  "30.0444,31.2357": "Cairo, Egypt",
+
+  // Philippines - Luzon
+  "14.5995,120.9842": "Manila, Philippines",
+  "16.4023,120.5960": "Baguio City, Philippines",
+  "9.7392,118.7353": "Puerto Princesa, Philippines",
+  "13.1392,123.7438": "Legazpi City, Philippines",
+
+  // Philippines - Visayas
+  "10.3157,123.8854": "Cebu City, Philippines",
+  "10.7202,122.5621": "Iloilo City, Philippines",
+  "11.2444,124.9985": "Tacloban City, Philippines",
+  "9.65,123.85": "Tagbilaran City, Philippines",
+
+  // Philippines - Mindanao
+  "7.0707,125.6087": "Davao City, Philippines",
+  "8.4542,124.6319": "Cagayan de Oro, Philippines",
+  "6.9214,122.0790": "Zamboanga City, Philippines",
+  "8.9475,125.5406": "Butuan City, Philippines"
+};
+
+function getPresetCityLabel(lat, lon) {
+  for (let key in presetCities) {
+    const [plat, plon] = key.split(',').map(Number);
+    if (Math.abs(plat - lat) < 0.1 && Math.abs(plon - lon) < 0.1) {
+      return presetCities[key];
+    }
+  }
+  return null;
+}
+
+// Elements
 const elCitySelect = document.getElementById('city-select');
-const elCitySearchInput = document.getElementById('city-search-input');
-const elClearSearchBtn = document.getElementById('clear-search-btn');
-const elSearchSuggestions = document.getElementById('search-suggestions');
 const elLatInput = document.getElementById('lat-input');
 const elLonInput = document.getElementById('lon-input');
 const elFetchBtn = document.getElementById('fetch-btn');
 
+// Hero Elements
+const elHeroCity = document.getElementById('hero-city');
+const elHeroCoords = document.getElementById('hero-coords');
+const elHourlyChartTitle = document.getElementById('hourly-chart-title');
+
 const elToggleC = document.getElementById('toggle-c');
 const elToggleF = document.getElementById('toggle-f');
 
-const elHeroCity = document.getElementById('hero-city');
-const elHeroCoords = document.getElementById('hero-coords');
+const elErrorBanner = document.getElementById('error-banner');
+const elErrorMessage = document.getElementById('error-message');
+const elLoadingSpinner = document.getElementById('loading-spinner');
+const elWeatherDashboard = document.getElementById('weather-dashboard');
+
+// Dashboard metrics elements
 const elCityLabel = document.getElementById('weather-city-label');
 const elCurrentTime = document.getElementById('weather-current-time');
 const elCurrentWeatherIcon = document.getElementById('current-weather-icon');
@@ -160,832 +123,210 @@ const elCurrentWeatherDesc = document.getElementById('current-weather-desc');
 const elCurrentLat = document.getElementById('current-lat');
 const elCurrentLon = document.getElementById('current-lon');
 
-const elStatWindSpeed = document.getElementById('stat-wind-speed');
-const elStatHumidity = document.getElementById('stat-humidity');
-
+// Highlight stats elements
 const elStatTempRange = document.getElementById('stat-temp-range');
 const elStatWmoCode = document.getElementById('stat-wmo-code');
 const elStatWmoLabel = document.getElementById('stat-wmo-label');
 const elStatHourlyPeak = document.getElementById('stat-hourly-peak');
 const elStatHourlyLow = document.getElementById('stat-hourly-low');
 
-const elHourlyChartTitle = document.getElementById('hourly-chart-title');
+// Daily Forecast grid
 const elDailyForecastContainer = document.getElementById('daily-forecast-container');
 
-const elErrorBanner = document.getElementById('error-banner');
-const elErrorMessage = document.getElementById('error-message');
-const elLoadingSpinner = document.getElementById('loading-spinner');
-const elWeatherDashboard = document.getElementById('weather-dashboard');
-const elModelDescCard = document.getElementById('model-desc-card');
-
-// World Accordion DOM Elements
-const elWorldSearchInput = document.getElementById('world-search-input');
-const elClearWorldSearchBtn = document.getElementById('clear-world-search-btn');
-const elWorldCappedNotice = document.getElementById('world-capped-notice');
-const elWorldAccordionContainer = document.getElementById('world-accordion-container');
-const elWorldSummaryText = document.getElementById('world-summary-text');
-const elWorldSummaryCoords = document.getElementById('world-summary-coords');
-
-// Helper to show/hide loader and errors
-function showLoading() {
-  elLoadingSpinner.classList.remove('hidden');
-  elWeatherDashboard.classList.add('hidden');
-  elErrorBanner.classList.add('hidden');
-}
-
-function hideLoading() {
-  elLoadingSpinner.classList.add('hidden');
-  elWeatherDashboard.classList.remove('hidden');
-}
-
-function showError(message) {
-  elErrorMessage.textContent = message;
-  elErrorBanner.classList.remove('hidden');
-  elLoadingSpinner.classList.add('hidden');
-  elWeatherDashboard.classList.add('hidden');
-}
-
-// ----------------------------------------------------
-// Multi-Dimensional Array Builders
-// ----------------------------------------------------
-function populateMatrices(data) {
-  const hourly = data.hourly;
-  if (!hourly || !hourly.time) return;
-
-  // 1. Populate modelMatrix[modelIndex][timeIndex][metric]
-  modelMatrix = [[], [], []];
-
-  const modelKeys = ['gfs_seamless', 'ecmwf_ifs025', 'icon_seamless'];
-  const totalHours = hourly.time.length; // usually 168 hours (7 days * 24h)
-
-  modelKeys.forEach((key, modelIdx) => {
-    const tempArr = hourly[`temperature_2m_${key}`] || hourly.temperature_2m || [];
-    const humidityArr = hourly[`relative_humidity_2m_${key}`] || hourly.relative_humidity_2m || [];
-    const wmoArr = hourly[`weather_code_${key}`] || hourly.weather_code || [];
-    const windArr = hourly[`wind_speed_10m_${key}`] || hourly.wind_speed_10m || [];
-    const precipArr = hourly[`precipitation_probability_${key}`] || hourly.precipitation_probability || [];
-
-    for (let t = 0; t < totalHours; t++) {
-      modelMatrix[modelIdx][t] = [];
-      modelMatrix[modelIdx][t][METRIC_TEMP] = tempArr[t] !== undefined ? tempArr[t] : null;
-      modelMatrix[modelIdx][t][METRIC_WMO] = wmoArr[t] !== undefined ? wmoArr[t] : 0;
-      modelMatrix[modelIdx][t][METRIC_WIND] = windArr[t] !== undefined ? windArr[t] : null;
-      modelMatrix[modelIdx][t][METRIC_HUMIDITY] = humidityArr[t] !== undefined ? humidityArr[t] : null;
-      modelMatrix[modelIdx][t][METRIC_PRECIP_PROB] = precipArr[t] !== undefined ? precipArr[t] : null;
-    }
-  });
-
-  // 2. Populate weatherMatrix[dayIndex][hourIndex][metricIndex] for active model
-  rebuildWeatherMatrixForActiveModel();
-}
-
-function rebuildWeatherMatrixForActiveModel() {
-  const activeModelIdx = MODEL_LABELS[selectedModelKey].index;
-  weatherMatrix = [];
-
-  for (let day = 0; day < 7; day++) {
-    weatherMatrix[day] = [];
-    for (let hour = 0; hour < 24; hour++) {
-      const timeIndex = day * 24 + hour;
-      if (modelMatrix[activeModelIdx] && modelMatrix[activeModelIdx][timeIndex]) {
-        weatherMatrix[day][hour] = [...modelMatrix[activeModelIdx][timeIndex]];
-      } else {
-        weatherMatrix[day][hour] = [null, 0, null, null, null];
-      }
-    }
+// Expose global loadWeather function
+window.loadWeather = async function(lat, lon, label) {
+  if (label) {
+    activeCityLabel = label;
+  } else {
+    activeCityLabel = getPresetCityLabel(lat, lon) || "Custom Location";
   }
-}
+  if (elLatInput) elLatInput.value = lat;
+  if (elLonInput) elLonInput.value = lon;
+  await fetchForecast(lat, lon);
+};
 
-// ----------------------------------------------------
-// Open-Meteo API Fetch Engine
-// ----------------------------------------------------
-async function fetchForecast(lat, lon, locationTitle = null) {
-  showLoading();
-
-  // Multi-model API query requesting GFS, ECMWF, ICON concurrently
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&hourly=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,precipitation_probability&daily=weather_code,temperature_2m_max,temperature_2m_min&models=gfs_seamless,ecmwf_ifs025,icon_seamless&timezone=auto`;
-
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Weather service returned HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    weatherData = data;
-    weatherData._customTitle = locationTitle;
-
-    // Build internal multi-dimensional arrays
-    populateMatrices(data);
-
-    // Default to Day 0 (Today)
-    selectedDayIndex = 0;
-
-    hideLoading();
-    renderWeatherDashboard();
-  } catch (err) {
-    console.error("Fetch weather error:", err);
-    showError(err.message || "Unable to load weather forecast.");
-  }
-}
-
-// ----------------------------------------------------
-// Unit Switcher Handler
-// ----------------------------------------------------
+// Change Unit Event Handlers
 elToggleC.addEventListener('click', () => {
   if (currentUnit === 'C') return;
   currentUnit = 'C';
-  elToggleC.className = "px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 bg-indigo-600 text-white shadow-md shadow-indigo-500/20";
-  elToggleF.className = "px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 text-slate-400 hover:text-slate-200";
-  renderWeatherDashboard();
+  updateUnitToggleUI();
+  if (weatherData) renderWeatherDashboard();
 });
 
 elToggleF.addEventListener('click', () => {
   if (currentUnit === 'F') return;
   currentUnit = 'F';
-  elToggleF.className = "px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 bg-indigo-600 text-white shadow-md shadow-indigo-500/20";
-  elToggleC.className = "px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 text-slate-400 hover:text-slate-200";
-  renderWeatherDashboard();
+  updateUnitToggleUI();
+  if (weatherData) renderWeatherDashboard();
 });
 
-// ----------------------------------------------------
-// Model Switcher Handler (Feature 5)
-// ----------------------------------------------------
-const modelBtns = document.querySelectorAll('.model-btn');
-modelBtns.forEach(btn => {
-  btn.addEventListener('click', () => {
-    const modelKey = btn.getAttribute('data-model');
-    if (!modelKey || modelKey === selectedModelKey) return;
-
-    selectedModelKey = modelKey;
-
-    // Update UI active buttons
-    modelBtns.forEach(b => {
-      b.className = "model-btn px-3 py-2 rounded-xl text-xs font-bold border transition-all text-center flex flex-col items-center gap-1 bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700/80";
-    });
-    btn.className = "model-btn active px-3 py-2 rounded-xl text-xs font-bold border transition-all text-center flex flex-col items-center gap-1 bg-indigo-600 border-indigo-500 text-white shadow-md";
-
-    // Update description banner
-    const info = MODEL_LABELS[selectedModelKey];
-    if (elModelDescCard) {
-      elModelDescCard.innerHTML = `<span class="font-bold text-indigo-300">Active Model:</span> ${info.name} (${info.provider}). Multi-dimensional matrix re-indexed.`;
-    }
-
-    // Re-index weatherMatrix & render
-    if (weatherData) {
-      rebuildWeatherMatrixForActiveModel();
-      renderWeatherDashboard();
-    }
-  });
-});
-
-// ----------------------------------------------------
-// Interactive City Search Auto-complete (Feature 4)
-// ----------------------------------------------------
-if (elCitySearchInput) {
-  elCitySearchInput.addEventListener('input', (e) => {
-    const query = e.target.value.trim();
-
-    if (query.length > 0) {
-      elClearSearchBtn.classList.remove('hidden');
-    } else {
-      elClearSearchBtn.classList.add('hidden');
-      elSearchSuggestions.classList.add('hidden');
-      return;
-    }
-
-    clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = setTimeout(() => {
-      fetchCitySuggestions(query);
-    }, 300);
-  });
-
-  elClearSearchBtn.addEventListener('click', () => {
-    elCitySearchInput.value = '';
-    elClearSearchBtn.classList.add('hidden');
-    elSearchSuggestions.classList.add('hidden');
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!elCitySearchInput.contains(e.target) && !elSearchSuggestions.contains(e.target)) {
-      elSearchSuggestions.classList.add('hidden');
-    }
-  });
-}
-
-async function fetchCitySuggestions(query) {
-  try {
-    const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`);
-    if (!res.ok) return;
-
-    const data = await res.json();
-    if (!data.results || data.results.length === 0) {
-      elSearchSuggestions.innerHTML = `<div class="p-3 text-xs text-slate-400">No matching cities found</div>`;
-      elSearchSuggestions.classList.remove('hidden');
-      return;
-    }
-
-    elSearchSuggestions.innerHTML = '';
-    data.results.forEach(city => {
-      const item = document.createElement('div');
-      item.className = "p-3 text-xs border-b border-slate-800/60 hover:bg-indigo-600/20 cursor-pointer flex justify-between items-center transition-colors";
-
-      const adminStr = city.admin1 ? `, ${city.admin1}` : '';
-      const countryStr = city.country ? ` (${city.country})` : '';
-      const displayTitle = `${city.name}${adminStr}${countryStr}`;
-
-      item.innerHTML = `
-        <div>
-          <span class="font-bold text-white">${city.name}</span>
-          <span class="text-[10px] text-slate-400 block">${city.country || ''} ${city.admin1 || ''}</span>
-        </div>
-        <span class="text-[10px] text-indigo-300 font-mono">${city.latitude.toFixed(2)}°, ${city.longitude.toFixed(2)}°</span>
-      `;
-
-      item.addEventListener('click', () => {
-        elLatInput.value = city.latitude;
-        elLonInput.value = city.longitude;
-        elCitySearchInput.value = displayTitle;
-        elSearchSuggestions.classList.add('hidden');
-        elCitySelect.value = 'custom';
-
-        fetchForecast(city.latitude, city.longitude, displayTitle);
-      });
-
-      elSearchSuggestions.appendChild(item);
-    });
-
-    elSearchSuggestions.classList.remove('hidden');
-  } catch (err) {
-    console.error("Geocoding search error:", err);
+function updateUnitToggleUI() {
+  if (currentUnit === 'C') {
+    elToggleC.className = "px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 bg-indigo-600 text-white shadow-md shadow-indigo-500/20";
+    elToggleF.className = "px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 text-slate-400 hover:text-slate-200";
+  } else {
+    elToggleF.className = "px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 bg-indigo-600 text-white shadow-md shadow-indigo-500/20";
+    elToggleC.className = "px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 text-slate-400 hover:text-slate-200";
   }
 }
 
-// ----------------------------------------------------
-// BROWSE BY COUNTRY ACCORDION FEATURE (3-LEVEL)
-// ----------------------------------------------------
-async function initWorldDatabase() {
+// Fetch Forecast Core Logic
+async function fetchForecast(lat, lon) {
+  showLoading(true);
+  showError(null);
+
   try {
-    const response = await fetch('data/world.json');
+    const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code&hourly=temperature_2m&current=temperature_2m`);
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      throw new Error(`Open-Meteo returned status ${response.status}`);
     }
-    world = await response.json();
-
-    // Default initial selection: Philippines -> South Cotabato -> City of Koronadal
-    selectDefaultLocation();
-  } catch (err) {
-    console.error("Failed to load world dataset:", err);
-    elWorldAccordionContainer.innerHTML = `
-      <div class="py-4 text-center text-xs text-rose-400 bg-rose-950/30 border border-rose-800/40 rounded-xl p-3">
-        <i class="fa-solid fa-triangle-exclamation mr-1"></i> Failed to load country location database.
-      </div>
-    `;
+    weatherData = await response.json();
+    selectedDayIndex = 0; // Reset to Today for the new location
+    renderWeatherDashboard();
+  } catch (error) {
+    console.error(error);
+    showError(error.message || "Failed to load weather forecast data. Please check your internet connection.");
+  } finally {
+    showLoading(false);
   }
 }
 
-function selectDefaultLocation() {
-  let phIdx = world.findIndex(c => c[COUNTRY_ISO2] === 'PH' || c[COUNTRY_NAME].toLowerCase() === 'philippines');
-  if (phIdx === -1) phIdx = 0;
-
-  let scIdx = 0;
-  if (world[phIdx] && world[phIdx][COUNTRY_PROVINCES]) {
-    const foundScIdx = world[phIdx][COUNTRY_PROVINCES].findIndex(p => p[PROVINCE_NAME].toLowerCase().includes('south cotabato'));
-    if (foundScIdx !== -1) scIdx = foundScIdx;
-  }
-
-  let cityIdx = 0;
-  if (world[phIdx] && world[phIdx][COUNTRY_PROVINCES][scIdx] && world[phIdx][COUNTRY_PROVINCES][scIdx][PROVINCE_CITIES]) {
-    const foundCityIdx = world[phIdx][COUNTRY_PROVINCES][scIdx][PROVINCE_CITIES].findIndex(ci => ci[CITY_NAME].toLowerCase().includes('koronadal'));
-    if (foundCityIdx !== -1) cityIdx = foundCityIdx;
-  }
-
-  // Expand Philippines and South Cotabato
-  expandedCountryIndex = phIdx;
-  expandedProvinceIndex = scIdx;
-
-  if (world[phIdx] && world[phIdx][COUNTRY_PROVINCES][scIdx] && world[phIdx][COUNTRY_PROVINCES][scIdx][PROVINCE_CITIES][cityIdx]) {
-    const targetCity = world[phIdx][COUNTRY_PROVINCES][scIdx][PROVINCE_CITIES][cityIdx];
-    const cName = world[phIdx][COUNTRY_NAME];
-    const pName = world[phIdx][COUNTRY_PROVINCES][scIdx][PROVINCE_NAME];
-    const ciName = targetCity[CITY_NAME];
-    const lat = targetCity[CITY_LAT];
-    const lon = targetCity[CITY_LON];
-
-    selectedWorldLocation = {
-      countryName: cName,
-      provinceName: pName,
-      cityName: ciName,
-      lat: lat,
-      lon: lon
-    };
-
-    updateSummaryCard();
-    elLatInput.value = lat;
-    elLonInput.value = lon;
-    if (elCitySearchInput) elCitySearchInput.value = `${ciName}, ${pName}, ${cName}`;
-
-    fetchForecast(lat, lon, `${ciName}, ${cName}`);
-  }
-
-  renderWorldAccordion();
-}
-
-function updateSummaryCard() {
-  if (elWorldSummaryText) {
-    elWorldSummaryText.textContent = `${selectedWorldLocation.cityName}, ${selectedWorldLocation.provinceName}, ${selectedWorldLocation.countryName}`;
-  }
-  if (elWorldSummaryCoords) {
-    elWorldSummaryCoords.textContent = `${selectedWorldLocation.lat}°N, ${selectedWorldLocation.lon}°E`;
-  }
-}
-
-// Filter / Search logic for accordion
-if (elWorldSearchInput) {
-  elWorldSearchInput.addEventListener('input', (e) => {
-    const query = e.target.value;
-    if (query.length > 0) {
-      elClearWorldSearchBtn.classList.remove('hidden');
-    } else {
-      elClearWorldSearchBtn.classList.add('hidden');
-    }
-
-    renderWorldAccordion();
-  });
-
-  elClearWorldSearchBtn.addEventListener('click', () => {
-    elWorldSearchInput.value = '';
-    elClearWorldSearchBtn.classList.add('hidden');
-    renderWorldAccordion();
-  });
-}
-
-function renderWorldAccordion() {
-  if (!world || world.length === 0) return;
-
-  const searchQuery = (elWorldSearchInput ? elWorldSearchInput.value : '').trim().toLowerCase();
-  const isSearching = searchQuery.length >= 2;
-
-  elWorldAccordionContainer.innerHTML = '';
-
-  if (isSearching) {
-    renderFilteredAccordion(searchQuery);
+function showLoading(isLoading) {
+  if (isLoading) {
+    elLoadingSpinner.classList.remove('hidden');
+    elWeatherDashboard.classList.add('hidden');
   } else {
-    if (elWorldCappedNotice) elWorldCappedNotice.classList.add('hidden');
-    renderNormalAccordion();
+    elLoadingSpinner.classList.add('hidden');
+    elWeatherDashboard.classList.remove('hidden');
   }
 }
 
-function renderNormalAccordion() {
-  world.forEach((country, cIdx) => {
-    const cIso2 = country[COUNTRY_ISO2];
-    const cName = country[COUNTRY_NAME];
-    const provinces = country[COUNTRY_PROVINCES] || [];
-    const isCountryExpanded = (expandedCountryIndex === cIdx);
-
-    const countryRow = document.createElement('div');
-    countryRow.className = "flex flex-col border-b border-slate-800/50 last:border-b-0";
-
-    const countryBtn = document.createElement('button');
-    countryBtn.type = 'button';
-    countryBtn.setAttribute('aria-expanded', isCountryExpanded ? 'true' : 'false');
-    countryBtn.className = `w-full py-2 px-2.5 rounded-lg text-left flex items-center justify-between transition-colors text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
-      isCountryExpanded ? 'bg-indigo-950/50 text-indigo-300' : 'text-slate-200 hover:bg-slate-800/40'
-    }`;
-
-    countryBtn.innerHTML = `
-      <div class="flex items-center gap-2 truncate">
-        <i class="fa-solid fa-chevron-right text-[10px] text-slate-400 accordion-chevron ${isCountryExpanded ? 'expanded' : ''}" aria-hidden="true"></i>
-        <span class="truncate">${cName}</span>
-      </div>
-      <span class="text-[10px] text-slate-500 font-mono ml-2 flex-shrink-0">${provinces.length} region${provinces.length === 1 ? '' : 's'}</span>
-    `;
-
-    countryBtn.addEventListener('click', () => {
-      if (expandedCountryIndex === cIdx) {
-        expandedCountryIndex = null;
-        expandedProvinceIndex = null;
-      } else {
-        expandedCountryIndex = cIdx;
-        expandedProvinceIndex = null;
-      }
-      renderWorldAccordion();
-    });
-
-    countryRow.appendChild(countryBtn);
-
-    // Render Provinces if Country Expanded
-    if (isCountryExpanded) {
-      const provinceContainer = document.createElement('div');
-      provinceContainer.className = "pl-3.5 pr-1 py-1 flex flex-col gap-1 border-l-2 border-indigo-500/30 my-1 ml-3";
-
-      provinces.forEach((province, pIdx) => {
-        const pName = province[PROVINCE_NAME];
-        const cities = province[PROVINCE_CITIES] || [];
-        const isProvinceExpanded = (expandedProvinceIndex === pIdx);
-
-        const provinceRow = document.createElement('div');
-        provinceRow.className = "flex flex-col";
-
-        const provinceBtn = document.createElement('button');
-        provinceBtn.type = 'button';
-        provinceBtn.setAttribute('aria-expanded', isProvinceExpanded ? 'true' : 'false');
-        provinceBtn.className = `w-full py-1.5 px-2 rounded-lg text-left flex items-center justify-between transition-colors text-[11px] font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
-          isProvinceExpanded ? 'bg-indigo-900/40 text-indigo-200' : 'text-slate-300 hover:bg-slate-800/40'
-        }`;
-
-        provinceBtn.innerHTML = `
-          <div class="flex items-center gap-1.5 truncate">
-            <i class="fa-solid fa-chevron-right text-[9px] text-slate-400 accordion-chevron ${isProvinceExpanded ? 'expanded' : ''}" aria-hidden="true"></i>
-            <span class="truncate">${pName}</span>
-          </div>
-          <span class="text-[9px] text-slate-500 font-mono ml-1.5 flex-shrink-0">${cities.length} cit${cities.length === 1 ? 'y' : 'ies'}</span>
-        `;
-
-        provinceBtn.addEventListener('click', () => {
-          if (expandedProvinceIndex === pIdx) {
-            expandedProvinceIndex = null;
-          } else {
-            expandedProvinceIndex = pIdx;
-          }
-          renderWorldAccordion();
-        });
-
-        provinceRow.appendChild(provinceBtn);
-
-        // Render Cities if Province Expanded
-        if (isProvinceExpanded) {
-          const cityContainer = document.createElement('div');
-          cityContainer.className = "pl-3 pr-1 py-1 flex flex-col gap-0.5 border-l border-slate-700/50 my-1 ml-2.5";
-
-          const pagKey = `${cIdx}-${pIdx}`;
-          const currentLimit = cityPaginationLimits[pagKey] || 100;
-          const visibleCities = cities.slice(0, currentLimit);
-
-          visibleCities.forEach((city, ciIdx) => {
-            const ciName = city[CITY_NAME];
-            const lat = city[CITY_LAT];
-            const lon = city[CITY_LON];
-
-            const isSelected = selectedWorldLocation.countryName === cName &&
-                               selectedWorldLocation.provinceName === pName &&
-                               selectedWorldLocation.cityName === ciName;
-
-            const cityBtn = document.createElement('button');
-            cityBtn.type = 'button';
-            cityBtn.className = `w-full py-1 px-2 rounded text-left flex items-center justify-between transition-colors text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
-              isSelected ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-            }`;
-
-            cityBtn.innerHTML = `
-              <span class="truncate">${ciName}</span>
-              <span class="text-[9px] ${isSelected ? 'text-indigo-200' : 'text-slate-500'} font-mono ml-1 flex-shrink-0">${lat}°, ${lon}°</span>
-            `;
-
-            cityBtn.addEventListener('click', () => {
-              selectedWorldLocation = {
-                countryName: cName,
-                provinceName: pName,
-                cityName: ciName,
-                lat: lat,
-                lon: lon
-              };
-
-              updateSummaryCard();
-              elLatInput.value = lat;
-              elLonInput.value = lon;
-              if (elCitySearchInput) elCitySearchInput.value = `${ciName}, ${pName}, ${cName}`;
-
-              fetchForecast(lat, lon, `${ciName}, ${cName}`);
-              renderWorldAccordion();
-            });
-
-            cityContainer.appendChild(cityBtn);
-          });
-
-          // Show "Show 100 more" button if there are remaining cities
-          if (cities.length > currentLimit) {
-            const showMoreBtn = document.createElement('button');
-            showMoreBtn.type = 'button';
-            showMoreBtn.className = "w-full py-1 text-center text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold bg-indigo-950/40 hover:bg-indigo-900/50 rounded mt-1 transition-colors";
-            showMoreBtn.textContent = `Show 100 more (${cities.length - currentLimit} remaining)`;
-
-            showMoreBtn.addEventListener('click', () => {
-              cityPaginationLimits[pagKey] = currentLimit + 100;
-              renderWorldAccordion();
-            });
-
-            cityContainer.appendChild(showMoreBtn);
-          }
-
-          provinceRow.appendChild(cityContainer);
-        }
-
-        provinceContainer.appendChild(provinceRow);
-      });
-
-      countryRow.appendChild(provinceContainer);
-    }
-
-    elWorldAccordionContainer.appendChild(countryRow);
-  });
-}
-
-function renderFilteredAccordion(query) {
-  const MAX_COUNTRIES = 12;
-  const MAX_PROVINCES = 15;
-  const MAX_CITIES = 8;
-
-  let countryMatchesCount = 0;
-  let isCapped = false;
-  let hasAnyMatch = false;
-
-  for (let cIdx = 0; cIdx < world.length; cIdx++) {
-    const country = world[cIdx];
-    const cName = country[COUNTRY_NAME];
-    const provinces = country[COUNTRY_PROVINCES] || [];
-    const countryMatches = cName.toLowerCase().includes(query);
-
-    // Filter matching provinces and cities
-    const matchedProvinces = [];
-
-    for (let pIdx = 0; pIdx < provinces.length; pIdx++) {
-      const province = provinces[pIdx];
-      const pName = province[PROVINCE_NAME];
-      const cities = province[PROVINCE_CITIES] || [];
-      const provinceMatches = pName.toLowerCase().includes(query);
-
-      const matchedCities = [];
-      for (let ciIdx = 0; ciIdx < cities.length; ciIdx++) {
-        const city = cities[ciIdx];
-        const ciName = city[CITY_NAME];
-        if (countryMatches || provinceMatches || ciName.toLowerCase().includes(query)) {
-          matchedCities.push({ city, ciIdx });
-        }
-      }
-
-      if (countryMatches || provinceMatches || matchedCities.length > 0) {
-        matchedProvinces.push({
-          province,
-          pIdx,
-          matchedCities
-        });
-      }
-    }
-
-    if (countryMatches || matchedProvinces.length > 0) {
-      hasAnyMatch = true;
-      countryMatchesCount++;
-
-      if (countryMatchesCount > MAX_COUNTRIES) {
-        isCapped = true;
-        break;
-      }
-
-      // Render Country Row (Auto-Expanded)
-      const countryRow = document.createElement('div');
-      countryRow.className = "flex flex-col border-b border-slate-800/50 last:border-b-0";
-
-      const countryHeader = document.createElement('div');
-      countryHeader.className = "w-full py-2 px-2.5 rounded-lg text-left flex items-center justify-between text-xs font-semibold bg-indigo-950/50 text-indigo-300";
-
-      countryHeader.innerHTML = `
-        <div class="flex items-center gap-2 truncate">
-          <i class="fa-solid fa-chevron-right text-[10px] text-slate-400 accordion-chevron expanded" aria-hidden="true"></i>
-          <span class="truncate">${cName}</span>
-        </div>
-        <span class="text-[10px] text-slate-500 font-mono ml-2 flex-shrink-0">${provinces.length} region${provinces.length === 1 ? '' : 's'}</span>
-      `;
-
-      countryRow.appendChild(countryHeader);
-
-      const provinceContainer = document.createElement('div');
-      provinceContainer.className = "pl-3.5 pr-1 py-1 flex flex-col gap-1 border-l-2 border-indigo-500/30 my-1 ml-3";
-
-      let provinceCount = 0;
-      for (const pMatch of matchedProvinces) {
-        provinceCount++;
-        if (provinceCount > MAX_PROVINCES) {
-          isCapped = true;
-          break;
-        }
-
-        const province = pMatch.province;
-        const pIdx = pMatch.pIdx;
-        const pName = province[PROVINCE_NAME];
-        const allCities = province[PROVINCE_CITIES] || [];
-        const citiesToRender = pMatch.matchedCities;
-
-        const provinceRow = document.createElement('div');
-        provinceRow.className = "flex flex-col";
-
-        const provinceHeader = document.createElement('div');
-        provinceHeader.className = "w-full py-1.5 px-2 rounded-lg text-left flex items-center justify-between text-[11px] font-medium bg-indigo-900/40 text-indigo-200";
-
-        provinceHeader.innerHTML = `
-          <div class="flex items-center gap-1.5 truncate">
-            <i class="fa-solid fa-chevron-right text-[9px] text-slate-400 accordion-chevron expanded" aria-hidden="true"></i>
-            <span class="truncate">${pName}</span>
-          </div>
-          <span class="text-[9px] text-slate-500 font-mono ml-1.5 flex-shrink-0">${allCities.length} cit${allCities.length === 1 ? 'y' : 'ies'}</span>
-        `;
-
-        provinceRow.appendChild(provinceHeader);
-
-        const cityContainer = document.createElement('div');
-        cityContainer.className = "pl-3 pr-1 py-1 flex flex-col gap-0.5 border-l border-slate-700/50 my-1 ml-2.5";
-
-        let cityCount = 0;
-        for (const cMatch of citiesToRender) {
-          cityCount++;
-          if (cityCount > MAX_CITIES) {
-            isCapped = true;
-            break;
-          }
-
-          const city = cMatch.city;
-          const ciName = city[CITY_NAME];
-          const lat = city[CITY_LAT];
-          const lon = city[CITY_LON];
-
-          const isSelected = selectedWorldLocation.countryName === cName &&
-                             selectedWorldLocation.provinceName === pName &&
-                             selectedWorldLocation.cityName === ciName;
-
-          const cityBtn = document.createElement('button');
-          cityBtn.type = 'button';
-          cityBtn.className = `w-full py-1 px-2 rounded text-left flex items-center justify-between transition-colors text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
-            isSelected ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-          }`;
-
-          cityBtn.innerHTML = `
-            <span class="truncate">${ciName}</span>
-            <span class="text-[9px] ${isSelected ? 'text-indigo-200' : 'text-slate-500'} font-mono ml-1 flex-shrink-0">${lat}°, ${lon}°</span>
-          `;
-
-          cityBtn.addEventListener('click', () => {
-            selectedWorldLocation = {
-              countryName: cName,
-              provinceName: pName,
-              cityName: ciName,
-              lat: lat,
-              lon: lon
-            };
-
-            updateSummaryCard();
-            elLatInput.value = lat;
-            elLonInput.value = lon;
-            if (elCitySearchInput) elCitySearchInput.value = `${ciName}, ${pName}, ${cName}`;
-
-            fetchForecast(lat, lon, `${ciName}, ${cName}`);
-            renderWorldAccordion();
-          });
-
-          cityContainer.appendChild(cityBtn);
-        }
-
-        provinceRow.appendChild(cityContainer);
-        provinceContainer.appendChild(provinceRow);
-      }
-
-      countryRow.appendChild(provinceContainer);
-      elWorldAccordionContainer.appendChild(countryRow);
-    }
-  }
-
-  if (!hasAnyMatch) {
-    elWorldAccordionContainer.innerHTML = `
-      <div class="py-6 text-center text-xs text-slate-400">
-        No matching country, province or city.
-      </div>
-    `;
-    if (elWorldCappedNotice) elWorldCappedNotice.classList.add('hidden');
+function showError(msg) {
+  if (msg) {
+    elErrorMessage.textContent = msg;
+    elErrorBanner.classList.remove('hidden');
   } else {
-    if (isCapped && elWorldCappedNotice) {
-      elWorldCappedNotice.classList.remove('hidden');
-    } else if (elWorldCappedNotice) {
-      elWorldCappedNotice.classList.add('hidden');
-    }
+    elErrorBanner.classList.add('hidden');
   }
 }
 
-// ----------------------------------------------------
-// Dashboard Rendering Engine
-// ----------------------------------------------------
+// Populate / Render Dashboard UI with data
 function renderWeatherDashboard() {
   if (!weatherData) return;
 
   const current = weatherData.current;
-  const latVal = weatherData.latitude;
-  const lonVal = weatherData.longitude;
+  const current_units = weatherData.current_units;
+  const hourly = weatherData.hourly;
+  const daily = weatherData.daily;
 
-  // Determine Location Title
-  let cityName = weatherData._customTitle || "Custom Location";
-  if (!weatherData._customTitle) {
-    for (let key in presetCities) {
-      const [plat, plon] = key.split(',').map(Number);
-      if (Math.abs(plat - latVal) < 0.1 && Math.abs(plon - lonVal) < 0.1) {
-        cityName = presetCities[key];
-        break;
-      }
-    }
-  }
+  // Determine standard City Name Label
+  const latVal = weatherData.latitude.toFixed(4);
+  const lonVal = weatherData.longitude.toFixed(4);
+
+  let cityName = activeCityLabel || getPresetCityLabel(weatherData.latitude, weatherData.longitude) || "Custom Location";
 
   // Update Main Dashboard & Hero Text
-  elCityLabel.textContent = cityName;
+  if (elCityLabel) elCityLabel.textContent = cityName;
   if (elHeroCity) elHeroCity.textContent = cityName;
-  if (elHeroCoords) elHeroCoords.textContent = `${latVal.toFixed(4)}°N, ${lonVal.toFixed(4)}°E`;
+  if (elHeroCoords) elHeroCoords.textContent = `${latVal}°N, ${lonVal}°E`;
 
-  // Time formatting
-  const timeDate = current && current.time ? new Date(current.time) : new Date();
-  elCurrentTime.textContent = timeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " " + timeDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  // Parse/Format Time
+  const timeDate = new Date(current.time);
+  if (elCurrentTime) elCurrentTime.textContent = timeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " " + timeDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
 
-  elCurrentLat.textContent = latVal.toFixed(2);
-  elCurrentLon.textContent = lonVal.toFixed(2);
+  // Lat and Lon details
+  if (elCurrentLat) elCurrentLat.textContent = latVal;
+  if (elCurrentLon) elCurrentLon.textContent = lonVal;
 
-  // Read current metrics from weatherMatrix[0][currentHour] or current API response
-  const currentHour = timeDate.getHours();
-  const currentMatrixPoint = (weatherMatrix[0] && weatherMatrix[0][currentHour]) ? weatherMatrix[0][currentHour] : [current?.temperature_2m, current?.weather_code, current?.wind_speed_10m, current?.relative_humidity_2m, null];
+  // Determine current weather code
+  const todayWmoCode = daily.weather_code && daily.weather_code[0] !== undefined ? daily.weather_code[0] : 0;
+  const wmoInfo = getWMOInfo(todayWmoCode);
 
-  const currentWmoCode = currentMatrixPoint[METRIC_WMO] !== undefined ? currentMatrixPoint[METRIC_WMO] : (current?.weather_code || 0);
-  const wmoInfo = getWMOInfo(currentWmoCode);
+  // Set weather icons and current temp
+  if (elCurrentWeatherIcon) elCurrentWeatherIcon.className = `fa-solid ${wmoInfo.icon} ${wmoInfo.color} animate-pulse`;
+  if (elBgWeatherIcon) elBgWeatherIcon.className = `fa-solid ${wmoInfo.icon}`;
 
-  // Weather Icon & Temperature Display
-  elCurrentWeatherIcon.className = `fa-solid ${wmoInfo.icon} ${wmoInfo.color} animate-pulse`;
-  elBgWeatherIcon.className = `fa-solid ${wmoInfo.icon}`;
+  if (currentUnit === 'C') {
+    if (elCurrentTemp) elCurrentTemp.textContent = current.temperature_2m.toFixed(1);
+    if (elCurrentUnit) elCurrentUnit.textContent = "°C";
+  } else {
+    if (elCurrentTemp) elCurrentTemp.textContent = cToF(current.temperature_2m).toFixed(1);
+    if (elCurrentUnit) elCurrentUnit.textContent = "°F";
+  }
+  if (elCurrentWeatherDesc) elCurrentWeatherDesc.textContent = wmoInfo.label;
 
-  const curTemp = currentMatrixPoint[METRIC_TEMP] !== null ? currentMatrixPoint[METRIC_TEMP] : (current?.temperature_2m || 0);
-  elCurrentTemp.textContent = currentUnit === 'C' ? curTemp.toFixed(1) : cToF(curTemp).toFixed(1);
-  elCurrentUnit.textContent = `°${currentUnit}`;
-  elCurrentWeatherDesc.textContent = wmoInfo.label;
-
-  // Secondary Current Metrics (Wind & Humidity)
-  const curWind = currentMatrixPoint[METRIC_WIND] !== null ? currentMatrixPoint[METRIC_WIND] : (current?.wind_speed_10m || '--');
-  const curHumid = currentMatrixPoint[METRIC_HUMIDITY] !== null ? currentMatrixPoint[METRIC_HUMIDITY] : (current?.relative_humidity_2m || '--');
-
-  if (elStatWindSpeed) elStatWindSpeed.textContent = `${curWind} km/h`;
-  if (elStatHumidity) elStatHumidity.textContent = `${curHumid} %`;
-
-  // Selected Day Matrix Analysis
-  const selectedDayMatrix = weatherMatrix[selectedDayIndex] || [];
-  const hourlyTemps = selectedDayMatrix.map(point => point[METRIC_TEMP]).filter(t => t !== null && !isNaN(t));
-
-  const minHourTemp = hourlyTemps.length > 0 ? Math.min(...hourlyTemps) : 0;
-  const maxHourTemp = hourlyTemps.length > 0 ? Math.max(...hourlyTemps) : 0;
-
-  // Selected Day WMO code (taken from midday or predominant point)
-  const middayWmoCode = selectedDayMatrix[12] ? selectedDayMatrix[12][METRIC_WMO] : currentWmoCode;
-  const targetWmoInfo = getWMOInfo(middayWmoCode);
-
-  elStatTempRange.textContent = `${formatTemp(minHourTemp)} / ${formatTemp(maxHourTemp)}`;
-  elStatWmoCode.textContent = middayWmoCode;
-  elStatWmoLabel.textContent = targetWmoInfo.label;
-  elStatHourlyPeak.textContent = formatTemp(maxHourTemp);
-  elStatHourlyLow.textContent = formatTemp(minHourTemp);
-
-  // Chart Title
-  const isToday = selectedDayIndex === 0;
-  const targetDayDate = new Date();
-  targetDayDate.setDate(targetDayDate.getDate() + selectedDayIndex);
+  // Determine target day details for the chart title and secondary stats
+  const targetDayStr = daily.time[selectedDayIndex];
+  const targetDayDate = new Date(targetDayStr);
   const targetDayLabel = targetDayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  const isToday = selectedDayIndex === 0;
 
   if (elHourlyChartTitle) {
     elHourlyChartTitle.textContent = `${isToday ? "Today's" : targetDayLabel} 24-Hour Temperature Curve`;
   }
 
-  // Render Daily Cards & Chart
-  renderDailyForecast();
-  renderHourlyChart();
+  // Determine selected day weather code
+  const targetWmoCode = daily.weather_code && daily.weather_code[selectedDayIndex] !== undefined ? daily.weather_code[selectedDayIndex] : 0;
+  const targetWmoInfo = getWMOInfo(targetWmoCode);
+
+  // Stats Highlights Box calculation
+  // Find peak and low in the hourly temps for the selected day
+  const startIdx = selectedDayIndex * 24;
+  const endIdx = startIdx + 24;
+  const hourlyTemps = hourly.temperature_2m.slice(startIdx, endIdx);
+  const minHourTemp = Math.min(...hourlyTemps);
+  const maxHourTemp = Math.max(...hourlyTemps);
+
+  if (elStatTempRange) elStatTempRange.textContent = `${formatTemp(minHourTemp)} / ${formatTemp(maxHourTemp)}`;
+  if (elStatWmoCode) elStatWmoCode.textContent = targetWmoCode;
+  if (elStatWmoLabel) elStatWmoLabel.textContent = targetWmoInfo.label;
+  if (elStatHourlyPeak) elStatHourlyPeak.textContent = formatTemp(maxHourTemp);
+  if (elStatHourlyLow) elStatHourlyLow.textContent = formatTemp(minHourTemp);
+
+  // Render 7-Day Forecast cards
+  renderDailyForecast(daily);
+
+  // Render Chart
+  renderHourlyChart(hourly);
 }
 
-// ----------------------------------------------------
-// Render 7-Day Forecast Cards from weatherMatrix
-// ----------------------------------------------------
-function renderDailyForecast() {
+function renderDailyForecast(daily) {
+  if (!elDailyForecastContainer) return;
   elDailyForecastContainer.innerHTML = '';
 
-  for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
-    const dayDate = new Date();
-    dayDate.setDate(dayDate.getDate() + dayIdx);
+  const days = daily.time;
+  const wmoCodes = daily.weather_code;
 
-    const dayName = dayIdx === 0 ? "Today" : dayDate.toLocaleDateString('en-US', { weekday: 'short' });
+  days.forEach((dayStr, index) => {
+    const dayDate = new Date(dayStr);
+    const dayName = dayDate.toLocaleDateString('en-US', { weekday: 'short' });
     const formattedDate = dayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-    const dayMatrix = weatherMatrix[dayIdx] || [];
-    const dayTemps = dayMatrix.map(p => p[METRIC_TEMP]).filter(t => t !== null && !isNaN(t));
-    const dailyMin = dayTemps.length > 0 ? Math.min(...dayTemps) : null;
-    const dailyMax = dayTemps.length > 0 ? Math.max(...dayTemps) : null;
+    const wmoCode = wmoCodes[index] !== undefined ? wmoCodes[index] : 0;
+    const info = getWMOInfo(wmoCode);
 
-    const noonWmo = dayMatrix[12] ? dayMatrix[12][METRIC_WMO] : 0;
-    const info = getWMOInfo(noonWmo);
+    const startIdx = index * 24;
+    const endIdx = startIdx + 24;
+    let dailyMin = null;
+    let dailyMax = null;
+
+    if (weatherData.hourly && weatherData.hourly.temperature_2m) {
+      const dayTemps = weatherData.hourly.temperature_2m.slice(startIdx, endIdx);
+      if (dayTemps.length > 0) {
+        dailyMin = Math.min(...dayTemps);
+        dailyMax = Math.max(...dayTemps);
+      }
+    }
 
     const card = document.createElement('div');
-    const isActive = dayIdx === selectedDayIndex;
+
+    // Check if this day is currently selected
+    const isActive = index === selectedDayIndex;
 
     if (isActive) {
-      card.className = "bg-indigo-650/30 border-2 border-indigo-500 rounded-xl p-3.5 flex flex-col items-center justify-between text-center gap-2 shadow-lg shadow-indigo-500/20 scale-[1.03] transition-all duration-300 ring-4 ring-indigo-500/10 cursor-default";
+      card.className = "bg-indigo-650/30 border-2 border-indigo-500 rounded-xl p-4 flex flex-col items-center justify-between text-center gap-2 shadow-lg shadow-indigo-500/20 scale-[1.03] transition-all duration-300 ring-4 ring-indigo-500/10 cursor-default";
     } else {
-      card.className = "bg-slate-900/40 border border-slate-800/60 rounded-xl p-3.5 flex flex-col items-center justify-between text-center gap-2 hover:bg-slate-800/40 hover:-translate-y-1 hover:border-slate-700/80 transition-all duration-300 cursor-pointer";
+      card.className = "bg-slate-900/40 border border-slate-800/60 rounded-xl p-4 flex flex-col items-center justify-between text-center gap-2 hover:bg-slate-800/40 hover:-translate-y-1 hover:border-slate-700/80 transition-all duration-300 cursor-pointer";
     }
 
     card.innerHTML = `
@@ -993,48 +334,46 @@ function renderDailyForecast() {
         <p class="text-xs font-bold ${isActive ? 'text-indigo-300' : 'text-white'} uppercase">${dayName}</p>
         <p class="text-[10px] text-slate-400 mt-0.5">${formattedDate}</p>
       </div>
-      <div class="text-2xl my-1.5">
+      <div class="text-2xl my-2">
         <i class="fa-solid ${info.icon} ${info.color}"></i>
       </div>
       <div class="flex flex-col gap-0.5">
-        <span class="text-[11px] font-semibold text-slate-200 line-clamp-1">${info.label}</span>
+        <span class="text-xs font-semibold text-slate-200">${info.label}</span>
         <span class="text-xs text-indigo-300 font-bold mt-1">${dailyMin !== null ? `${formatTemp(dailyMin)} - ${formatTemp(dailyMax)}` : '--'}</span>
       </div>
     `;
 
+    // Click handler to change the active selected day
     if (!isActive) {
       card.addEventListener('click', () => {
-        selectedDayIndex = dayIdx;
+        selectedDayIndex = index;
         renderWeatherDashboard();
       });
     }
 
     elDailyForecastContainer.appendChild(card);
-  }
+  });
 }
 
-// ----------------------------------------------------
-// Render Hourly Chart.js Line Chart from weatherMatrix
-// ----------------------------------------------------
-function renderHourlyChart() {
-  const ctx = document.getElementById('hourlyChart').getContext('2d');
+function renderHourlyChart(hourly) {
+  const canvas = document.getElementById('hourlyChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
 
   if (hourlyChartInstance) {
     hourlyChartInstance.destroy();
   }
 
-  const dayMatrix = weatherMatrix[selectedDayIndex] || [];
-  const hourlyTimes = [];
-  const displayTemps = [];
+  const startIdx = selectedDayIndex * 24;
+  const endIdx = startIdx + 24;
 
-  for (let hour = 0; hour < 24; hour++) {
-    const hourStr = `${hour.toString().padStart(2, '0')}:00`;
-    hourlyTimes.push(hourStr);
+  const hourlyTimes = hourly.time.slice(startIdx, endIdx).map(t => {
+    const d = new Date(t);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  });
 
-    const rawTemp = dayMatrix[hour] ? dayMatrix[hour][METRIC_TEMP] : 0;
-    const tempVal = currentUnit === 'C' ? rawTemp : cToF(rawTemp);
-    displayTemps.push(tempVal);
-  }
+  const rawTemps = hourly.temperature_2m.slice(startIdx, endIdx);
+  const displayTemps = currentUnit === 'C' ? rawTemps : rawTemps.map(cToF);
 
   const gradient = ctx.createLinearGradient(0, 0, 0, 250);
   gradient.addColorStop(0, 'rgba(99, 102, 241, 0.4)');
@@ -1074,15 +413,7 @@ function renderHourlyChart() {
           displayColors: false,
           callbacks: {
             label: function(context) {
-              const hourIdx = context.dataIndex;
-              const point = dayMatrix[hourIdx] || [];
-              const wind = point[METRIC_WIND] !== null ? point[METRIC_WIND] : '--';
-              const humid = point[METRIC_HUMIDITY] !== null ? point[METRIC_HUMIDITY] : '--';
-              return [
-                `Temp: ${context.parsed.y.toFixed(1)}°${currentUnit}`,
-                `Wind: ${wind} km/h`,
-                `Humidity: ${humid}%`
-              ];
+              return `Temp: ${context.parsed.y.toFixed(1)}°${currentUnit}`;
             }
           }
         }
@@ -1109,7 +440,7 @@ function renderHourlyChart() {
               size: 10
             },
             callback: function(value) {
-              return value.toFixed(0) + `°${currentUnit}`;
+              return value + `°${currentUnit}`;
             }
           }
         }
@@ -1119,57 +450,56 @@ function renderHourlyChart() {
 }
 
 // ----------------------------------------------------
-// Event Handlers for Preset Select & Coordinates Fetch Button
+// Event handlers for Dropdown preset city and inputs
 // ----------------------------------------------------
-elCitySelect.addEventListener('change', () => {
-  const value = elCitySelect.value;
-  if (value === 'custom') return;
 
-  const [latStr, lonStr] = value.split(',');
-  const latVal = parseFloat(latStr);
-  const lonVal = parseFloat(lonStr);
-
-  elLatInput.value = latVal;
-  elLonInput.value = lonVal;
-  if (elCitySearchInput) elCitySearchInput.value = presetCities[value] || '';
-
-  fetchForecast(latVal, lonVal, presetCities[value]);
-});
-
-elFetchBtn.addEventListener('click', () => {
-  const latVal = parseFloat(elLatInput.value);
-  const lonVal = parseFloat(elLonInput.value);
-
-  if (isNaN(latVal) || latVal < -90 || latVal > 90) {
-    showError("Please enter a valid Latitude between -90 and 90.");
-    return;
-  }
-  if (isNaN(lonVal) || lonVal < -180 || lonVal > 180) {
-    showError("Please enter a valid Longitude between -180 and 180.");
-    return;
-  }
-
-  let matchesPreset = false;
-  let matchedName = null;
-
-  for (let key in presetCities) {
-    const [plat, plon] = key.split(',').map(Number);
-    if (Math.abs(plat - latVal) < 0.0001 && Math.abs(plon - lonVal) < 0.0001) {
-      elCitySelect.value = key;
-      matchesPreset = true;
-      matchedName = presetCities[key];
-      break;
+if (elCitySelect) {
+  elCitySelect.addEventListener('change', () => {
+    const value = elCitySelect.value;
+    if (value === 'custom') {
+      return;
     }
-  }
 
-  if (!matchesPreset) {
-    elCitySelect.value = 'custom';
-  }
+    const [latStr, lonStr] = value.split(',');
+    const lat = parseFloat(latStr);
+    const lon = parseFloat(lonStr);
+    if (elLatInput) elLatInput.value = lat;
+    if (elLonInput) elLonInput.value = lon;
 
-  fetchForecast(latVal, lonVal, matchedName);
-});
+    window.loadWeather(lat, lon, presetCities[value]);
+  });
+}
 
-// Initial Load: Fetch world database and default location
-window.addEventListener('DOMContentLoaded', () => {
-  initWorldDatabase();
-});
+if (elFetchBtn) {
+  elFetchBtn.addEventListener('click', () => {
+    const latVal = parseFloat(elLatInput.value);
+    const lonVal = parseFloat(elLonInput.value);
+
+    if (isNaN(latVal) || latVal < -90 || latVal > 90) {
+      showError("Please enter a valid Latitude between -90 and 90.");
+      return;
+    }
+    if (isNaN(lonVal) || lonVal < -180 || lonVal > 180) {
+      showError("Please enter a valid Longitude between -180 and 180.");
+      return;
+    }
+
+    let matchesPreset = false;
+    let matchedLabel = null;
+    for (let key in presetCities) {
+      const [plat, plon] = key.split(',').map(Number);
+      if (Math.abs(plat - latVal) < 0.0001 && Math.abs(plon - lonVal) < 0.0001) {
+        if (elCitySelect) elCitySelect.value = key;
+        matchesPreset = true;
+        matchedLabel = presetCities[key];
+        break;
+      }
+    }
+
+    if (!matchesPreset) {
+      if (elCitySelect) elCitySelect.value = 'custom';
+    }
+
+    window.loadWeather(latVal, lonVal, matchedLabel || "Custom Location");
+  });
+}
