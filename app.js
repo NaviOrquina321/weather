@@ -39,11 +39,25 @@ let currentUnit = 'C'; // 'C' or 'F'
 let weatherData = null;
 let hourlyChartInstance = null;
 let selectedDayIndex = 0; // 0 to 6 representing forecast days
-// Multi-dimensional 2D array grid storage (7 days x 24 hours) - CHANGED
+
+// Multi-dimensional 2D array grid storage for forecast hourly metrics (7 days x 24 hours)
 let hourlyByDay = [];
 let timesByDay = [];
 
-// Converts a flat array of 168 elements into a 7x24 2D grid array - CHANGED
+// Hierarchical Multi-Dimensional Array Dataset for World Locations:
+// worldLocations = [ countryRow, ... ]
+// countryRow = [ code, countryName, regionsArray ]
+// regionsArray = [ regionRow, ... ]
+// regionRow = [ regionName, citiesArray ]
+// citiesArray = [ cityRow, ... ]
+// cityRow = [ cityName, latNumber, lonNumber ]
+let worldLocations = [];
+let activeLocationLabel = "Berlin, Germany";
+let expandedCountries = new Set();
+let expandedRegions = new Set();
+let selectedCityKey = ""; // "cIdx-rIdx-cityIdx"
+
+// Converts a flat array of 168 elements into a 7x24 2D grid array
 function buildDayGrid(flatList) {
   const grid = [];
   if (!flatList || flatList.length === 0) return grid;
@@ -70,107 +84,20 @@ function formatTemp(value) {
   return `${displayVal.toFixed(1)}°${currentUnit}`;
 }
 
-// Map city names / presets
-const presetCities = {
-  // Europe
-  "52.52,13.41": "Berlin, Germany",
-  "51.5074,-0.1278": "London, UK",
-  "48.8566,2.3522": "Paris, France",
-  "41.9028,12.4964": "Rome, Italy",
-  "40.4168,-3.7038": "Madrid, Spain",
-  "52.3676,4.9041": "Amsterdam, Netherlands",
-  "48.2082,16.3738": "Vienna, Austria",
-  "47.3769,8.5417": "Zurich, Switzerland",
-  "37.9838,23.7275": "Athens, Greece",
-  "59.3293,18.0686": "Stockholm, Sweden",
-  "59.9139,10.7522": "Oslo, Norway",
-  "53.3498,-6.2603": "Dublin, Ireland",
-  "50.0755,14.4378": "Prague, Czech Republic",
-  "52.2297,21.0122": "Warsaw, Poland",
-  "38.7223,-9.1393": "Lisbon, Portugal",
-  "41.0082,28.9784": "Istanbul, Turkey",
-
-  // Asia
-  "35.6762,139.6503": "Tokyo, Japan",
-  "39.9042,116.4074": "Beijing, China",
-  "31.2304,121.4737": "Shanghai, China",
-  "37.5665,126.978": "Seoul, South Korea",
-  "1.3521,103.8198": "Singapore",
-  "13.7563,100.5018": "Bangkok, Thailand",
-  "19.076,72.8777": "Mumbai, India",
-  "28.6139,77.209": "New Delhi, India",
-  "-6.2088,106.8456": "Jakarta, Indonesia",
-  "3.139,101.6869": "Kuala Lumpur, Malaysia",
-  "25.2048,55.2708": "Dubai, UAE",
-  "24.7136,46.6753": "Riyadh, Saudi Arabia",
-  "25.033,121.5654": "Taipei, Taiwan",
-  "21.0285,105.8542": "Hanoi, Vietnam",
-
-  // North America
-  "40.7128,-74.006": "New York, USA",
-  "34.0522,-118.2437": "Los Angeles, USA",
-  "41.8781,-87.6298": "Chicago, USA",
-  "43.6532,-79.3832": "Toronto, Canada",
-  "49.2827,-123.1207": "Vancouver, Canada",
-  "19.4326,-99.1332": "Mexico City, Mexico",
-  "23.1136,-82.3666": "Havana, Cuba",
-  "9.9281,-84.0907": "San Jose, Costa Rica",
-
-  // South America
-  "-23.5505,-46.6333": "São Paulo, Brazil",
-  "-22.9068,-43.1729": "Rio de Janeiro, Brazil",
-  "-34.6037,-58.3816": "Buenos Aires, Argentina",
-  "4.711,-74.0721": "Bogotá, Colombia",
-  "-12.0464,-77.0428": "Lima, Peru",
-  "-33.4489,-70.6693": "Santiago, Chile",
-  "10.4806,-66.9036": "Caracas, Venezuela",
-
-  // Africa
-  "30.0444,31.2357": "Cairo, Egypt",
-  "6.5244,3.3792": "Lagos, Nigeria",
-  "-26.2041,28.0473": "Johannesburg, South Africa",
-  "-33.9249,18.4241": "Cape Town, South Africa",
-  "-1.2921,36.8219": "Nairobi, Kenya",
-  "33.5731,-7.5898": "Casablanca, Morocco",
-  "9.03,38.74": "Addis Ababa, Ethiopia",
-  "5.6037,-0.187": "Accra, Ghana",
-
-  // Oceania
-  "-33.8688,151.2093": "Sydney, Australia",
-  "-37.8136,144.9631": "Melbourne, Australia",
-  "-27.4705,153.026": "Brisbane, Australia",
-  "-36.8485,174.7633": "Auckland, New Zealand",
-  "-18.1248,178.4501": "Suva, Fiji",
-
-  // Philippines - Luzon
-  "14.5995,120.9842": "Manila, Philippines",
-  "16.4023,120.5960": "Baguio City, Philippines",
-  "9.7392,118.7353": "Puerto Princesa, Philippines",
-  "13.1392,123.7438": "Legazpi City, Philippines",
-
-  // Philippines - Visayas
-  "10.3157,123.8854": "Cebu City, Philippines",
-  "10.7202,122.5621": "Iloilo City, Philippines",
-  "11.2444,124.9985": "Tacloban City, Philippines",
-  "9.65,123.85": "Tagbilaran City, Philippines",
-
-  // Philippines - Mindanao
-  "7.0707,125.6087": "Davao City, Philippines",
-  "8.4542,124.6319": "Cagayan de Oro, Philippines",
-  "6.9214,122.0790": "Zamboanga City, Philippines",
-  "8.9475,125.5406": "Butuan City, Philippines"
-};
-
 // Elements
-const elCitySelect = document.getElementById('city-select');
 const elLatInput = document.getElementById('lat-input');
 const elLonInput = document.getElementById('lon-input');
 const elFetchBtn = document.getElementById('fetch-btn');
 
-// Search Elements
+// Search / Filter Elements
 const elSearchInput = document.getElementById('search-input');
 const elSearchBtn = document.getElementById('search-btn');
-const elSearchResults = document.getElementById('search-results');
+const elLocationAccordion = document.getElementById('location-accordion');
+
+// Active selection card elements
+const elActiveSelectionTitle = document.getElementById('active-selection-title');
+const elActiveSelectionLat = document.getElementById('active-selection-lat');
+const elActiveSelectionLon = document.getElementById('active-selection-lon');
 
 // Hero Elements
 const elHeroCity = document.getElementById('hero-city');
@@ -232,7 +159,7 @@ function updateUnitToggleUI() {
 }
 
 // Fetch Forecast Core Logic
-async function fetchForecast(lat, lon) {
+async function fetchForecast(lat, lon, label = null) {
   showLoading(true);
   showError(null);
 
@@ -242,7 +169,12 @@ async function fetchForecast(lat, lon) {
       throw new Error(`Open-Meteo returned status ${response.status}`);
     }
     weatherData = await response.json();
-    // Convert 168-item flat hourly arrays into 7x24 2D grid multi-dimensional arrays - CHANGED
+
+    if (label) {
+      activeLocationLabel = label;
+    }
+
+    // Convert 168-item flat hourly arrays into 7x24 2D grid multi-dimensional arrays
     if (weatherData.hourly && weatherData.hourly.temperature_2m) {
       hourlyByDay = buildDayGrid(weatherData.hourly.temperature_2m);
     }
@@ -258,6 +190,11 @@ async function fetchForecast(lat, lon) {
     showLoading(false);
   }
 }
+
+// Expose loadWeather globally for modular triggers
+window.loadWeather = function(lat, lon, label) {
+  fetchForecast(lat, lon, label);
+};
 
 function showLoading(isLoading) {
   if (isLoading) {
@@ -283,30 +220,24 @@ function renderWeatherDashboard() {
   if (!weatherData) return;
 
   const current = weatherData.current;
-  const current_units = weatherData.current_units;
   const hourly = weatherData.hourly;
   const daily = weatherData.daily;
 
-  // Determine standard City Name Label
   const latVal = weatherData.latitude.toFixed(4);
   const lonVal = weatherData.longitude.toFixed(4);
 
-  // Find preset name that matches approximately or use Custom Coordinates label
-  let cityName = "Custom Location";
-  for (let key in presetCities) {
-    const [plat, plon] = key.split(',').map(Number);
-    if (Math.abs(plat - weatherData.latitude) < 0.1 && Math.abs(plon - weatherData.longitude) < 0.1) {
-      cityName = presetCities[key];
-      break;
-    }
-  }
+  const cityName = activeLocationLabel || "Custom Location";
 
   // Update Main Dashboard & Hero Text
   elCityLabel.textContent = cityName;
   if (elHeroCity) elHeroCity.textContent = cityName;
   if (elHeroCoords) elHeroCoords.textContent = `${latVal}°N, ${lonVal}°E`;
 
-  // Parse/Format Time directly from local ISO string (current.time e.g., "2026-10-23T11:00")
+  if (elActiveSelectionTitle) elActiveSelectionTitle.textContent = cityName;
+  if (elActiveSelectionLat) elActiveSelectionLat.textContent = `Lat ${latVal}`;
+  if (elActiveSelectionLon) elActiveSelectionLon.textContent = `Lon ${lonVal}`;
+
+  // Parse/Format Time directly from local ISO string
   if (current.time) {
     const [datePart, timePart] = current.time.split("T");
     if (datePart && timePart) {
@@ -326,11 +257,10 @@ function renderWeatherDashboard() {
   elCurrentLat.textContent = latVal;
   elCurrentLon.textContent = lonVal;
 
-  // Determine current weather code strictly synced with current.weather_code
+  // Weather code synced with current.weather_code
   const currentWmoCode = current.weather_code !== undefined ? current.weather_code : 0;
   const wmoInfo = getWMOInfo(currentWmoCode);
 
-  // Set weather icons and current temp directly from real-time payload
   elCurrentWeatherIcon.className = `fa-solid ${wmoInfo.icon} ${wmoInfo.color} animate-pulse`;
   elBgWeatherIcon.className = `fa-solid ${wmoInfo.icon}`;
 
@@ -343,7 +273,6 @@ function renderWeatherDashboard() {
   }
   elCurrentWeatherDesc.textContent = wmoInfo.label;
 
-  // Determine target day details for the chart title and secondary stats
   const targetDayStr = daily.time[selectedDayIndex];
   const targetDayDate = new Date(targetDayStr);
   const targetDayLabel = targetDayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
@@ -353,12 +282,9 @@ function renderWeatherDashboard() {
     elHourlyChartTitle.textContent = `${isToday ? "Today's" : targetDayLabel} 24-Hour Temperature Curve`;
   }
 
-  // Determine selected day weather code
   const targetWmoCode = daily.weather_code && daily.weather_code[selectedDayIndex] !== undefined ? daily.weather_code[selectedDayIndex] : 0;
   const targetWmoInfo = getWMOInfo(targetWmoCode);
 
-  // Stats Highlights Box calculation
-  // Find peak and low in the hourly temps for the selected day - CHANGED: use hourlyByDay grid
   const hourlyTemps = hourlyByDay[selectedDayIndex] || [];
   const minHourTemp = Math.min(...hourlyTemps);
   const maxHourTemp = Math.max(...hourlyTemps);
@@ -369,10 +295,7 @@ function renderWeatherDashboard() {
   elStatHourlyPeak.textContent = formatTemp(maxHourTemp);
   elStatHourlyLow.textContent = formatTemp(minHourTemp);
 
-  // Render 7-Day Forecast cards
   renderDailyForecast(daily);
-
-  // Render Chart
   renderHourlyChart(hourly);
 }
 
@@ -393,7 +316,6 @@ function renderDailyForecast(daily) {
     let dailyMin = null;
     let dailyMax = null;
 
-    // CHANGED: use hourlyByDay grid instead of slice
     if (hourlyByDay && hourlyByDay[index]) {
       const dayTemps = hourlyByDay[index];
       if (dayTemps.length > 0) {
@@ -403,8 +325,6 @@ function renderDailyForecast(daily) {
     }
 
     const card = document.createElement('div');
-
-    // Check if this day is currently selected
     const isActive = index === selectedDayIndex;
 
     if (isActive) {
@@ -427,7 +347,6 @@ function renderDailyForecast(daily) {
       </div>
     `;
 
-    // Click handler to change the active selected day
     if (!isActive) {
       card.addEventListener('click', () => {
         selectedDayIndex = index;
@@ -446,7 +365,6 @@ function renderHourlyChart(hourly) {
     hourlyChartInstance.destroy();
   }
 
-  // CHANGED: use timesByDay and hourlyByDay multi-dimensional arrays instead of slice
   const dayTimes = timesByDay[selectedDayIndex] || [];
   const hourlyTimes = dayTimes.map(t => {
     const d = new Date(t);
@@ -492,9 +410,7 @@ function renderHourlyChart(hourly) {
         }
       },
       plugins: {
-        legend: {
-          display: false
-        },
+        legend: { display: false },
         tooltip: {
           backgroundColor: 'rgba(15, 23, 42, 0.9)',
           titleColor: '#ffffff',
@@ -511,36 +427,12 @@ function renderHourlyChart(hourly) {
         }
       },
       scales: {
-        x: {
-          grid: {
-            color: 'rgba(255, 255, 255, 0.05)'
-          },
-          ticks: {
-            color: '#94a3b8',
-            font: {
-              size: 10
-            }
-          }
-        },
-        y: {
-          grid: {
-            color: 'rgba(255, 255, 255, 0.05)'
-          },
-          ticks: {
-            color: '#94a3b8',
-            font: {
-              size: 10
-            },
-            callback: function(value) {
-              return value + `°${currentUnit}`;
-            }
-          }
-        }
+        x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+        y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + `°${currentUnit}` } }
       }
     }
   });
 
-  // Direct canvas click handler for precise nearest-point calculation
   const canvasEl = document.getElementById('hourlyChart');
   canvasEl.onclick = (evt) => {
     if (!hourlyChartInstance) return;
@@ -577,30 +469,236 @@ function renderHourlyChart(hourly) {
 }
 
 // ----------------------------------------------------
-// Event handlers for Dropdown preset city and inputs
+// Load and Render 3-Level Multi-Dimensional Accordion
 // ----------------------------------------------------
 
-elCitySelect.addEventListener('change', () => {
-  const value = elCitySelect.value;
-  if (value === 'custom') {
-    // Leave fields open for customization
+async function loadWorldData() {
+  try {
+    const res = await fetch('data/world.json');
+    if (!res.ok) throw new Error("Could not load world locations dataset");
+    const data = await res.json();
+
+    // Append lowercased search index string to each city row [cityName, lat, lon, searchIndex]
+    worldLocations = data.map(c => [
+      c[0], // code
+      c[1], // countryName
+      c[2].map(r => [
+        r[0], // regionName
+        r[1].map(ct => [ct[0], ct[1], ct[2], `${ct[0]} ${r[0]} ${c[1]}`.toLowerCase()])
+      ])
+    ]);
+
+    // Auto expand Philippines by default if available
+    const phIdx = worldLocations.findIndex(c => c[0] === 'PH' || c[1] === 'Philippines');
+    if (phIdx !== -1) {
+      expandedCountries.add(phIdx);
+      // Auto expand first region
+      expandedRegions.add(`${phIdx}-0`);
+    }
+
+    renderLocationAccordion();
+  } catch (err) {
+    console.error("Failed to load world data:", err);
+    if (elLocationAccordion) {
+      elLocationAccordion.innerHTML = `<div class="p-4 text-xs text-rose-400">Error loading world dataset.</div>`;
+    }
+  }
+}
+
+function renderLocationAccordion(filterQuery = "") {
+  if (!elLocationAccordion) return;
+  const q = (filterQuery || "").trim().toLowerCase();
+
+  elLocationAccordion.innerHTML = '';
+
+  if (worldLocations.length === 0) {
+    elLocationAccordion.innerHTML = `<div class="text-center py-6 text-xs text-slate-400">No locations loaded.</div>`;
     return;
   }
 
-  // Extract lat/lon and update input values
-  const [latStr, lonStr] = value.split(',');
-  elLatInput.value = parseFloat(latStr);
-  elLonInput.value = parseFloat(lonStr);
+  let totalMatchCount = 0;
 
-  // Auto fetch immediately on city quick-select
-  fetchForecast(parseFloat(latStr), parseFloat(lonStr));
-});
+  // Traverse 3D Multi-Dimensional Array
+  // Level 1: worldLocations[cIdx] -> [code, countryName, regions]
+  worldLocations.forEach((countryRow, cIdx) => {
+    const code = countryRow[0];
+    const countryName = countryRow[1];
+    const regions = countryRow[2];
+
+    // Calculate total region count and total city count
+    const totalRegions = regions.length;
+
+    // Check if country matches or any child region/city matches filter query
+    let countryMatches = false;
+    if (q) {
+      countryMatches = countryName.toLowerCase().includes(q) || code.toLowerCase().includes(q);
+    }
+
+    // Filter regions
+    const matchingRegions = [];
+    regions.forEach((regionRow, rIdx) => {
+      const regionName = regionRow[0];
+      const cities = regionRow[1];
+
+      let regionMatches = false;
+      if (q) {
+        regionMatches = countryMatches || regionName.toLowerCase().includes(q);
+      }
+
+      const matchingCities = [];
+      cities.forEach((cityRow, cityIdx) => {
+        const cityName = cityRow[0];
+        const searchIdx = cityRow[3];
+        if (!q || regionMatches || searchIdx.includes(q)) {
+          matchingCities.push({ cityIdx, cityRow });
+        }
+      });
+
+      if (matchingCities.length > 0) {
+        matchingRegions.push({ rIdx, regionName, matchingCities });
+      }
+    });
+
+    if (q && matchingRegions.length === 0) return; // Skip non-matching country
+
+    totalMatchCount++;
+
+    const isCountryExpanded = q ? true : expandedCountries.has(cIdx);
+
+    // Create Level 1: Country Card Element (matching design from image.png)
+    const countryCard = document.createElement('div');
+    countryCard.className = `rounded-xl border ${isCountryExpanded ? 'border-indigo-500/40 bg-slate-900/80 shadow-md' : 'border-slate-800/80 bg-slate-900/40 hover:border-slate-700/80'} overflow-hidden transition-all duration-200`;
+
+    const countryHeader = document.createElement('div');
+    countryHeader.className = 'px-3.5 py-3 flex items-center justify-between cursor-pointer select-none';
+    countryHeader.innerHTML = `
+      <div class="flex items-center gap-2.5">
+        <span class="px-2 py-0.5 text-[10px] font-bold bg-indigo-900/60 text-indigo-300 rounded border border-indigo-700/50 uppercase tracking-wider">${code}</span>
+        <span class="font-bold text-slate-100 text-xs">${countryName}</span>
+      </div>
+      <div class="flex items-center gap-1.5 text-slate-400 text-[11px]">
+        <span>${totalRegions} ${totalRegions === 1 ? 'region' : 'regions'}</span>
+        <i class="fa-solid ${isCountryExpanded ? 'fa-chevron-down text-indigo-400' : 'fa-chevron-right'} text-[10px]"></i>
+      </div>
+    `;
+
+    countryHeader.addEventListener('click', () => {
+      if (expandedCountries.has(cIdx)) {
+        expandedCountries.delete(cIdx);
+      } else {
+        expandedCountries.add(cIdx);
+      }
+      renderLocationAccordion(elSearchInput ? elSearchInput.value : "");
+    });
+
+    countryCard.appendChild(countryHeader);
+
+    // If Expanded, Render Level 2: Regions
+    if (isCountryExpanded && matchingRegions.length > 0) {
+      const regionsContainer = document.createElement('div');
+      regionsContainer.className = 'border-t border-slate-800/80 px-2 py-2 flex flex-col gap-1.5 bg-slate-950/50';
+
+      matchingRegions.forEach(({ rIdx, regionName, matchingCities }) => {
+        const regionKey = `${cIdx}-${rIdx}`;
+        const isRegionExpanded = q ? true : expandedRegions.has(regionKey);
+        const totalCitiesInRegion = matchingCities.length;
+
+        const regionBox = document.createElement('div');
+        regionBox.className = 'rounded-lg overflow-hidden border border-slate-800/60 bg-slate-900/30';
+
+        const regionHeader = document.createElement('div');
+        regionHeader.className = 'px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/40 text-xs select-none';
+        regionHeader.innerHTML = `
+          <span class="font-medium text-slate-200">${regionName}</span>
+          <div class="flex items-center gap-1.5 text-slate-400 text-[10px]">
+            <span>${totalCitiesInRegion} ${totalCitiesInRegion === 1 ? 'city' : 'cities'}</span>
+            <i class="fa-solid ${isRegionExpanded ? 'fa-chevron-down text-indigo-400' : 'fa-chevron-right'}"></i>
+          </div>
+        `;
+
+        regionHeader.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (expandedRegions.has(regionKey)) {
+            expandedRegions.delete(regionKey);
+          } else {
+            expandedRegions.add(regionKey);
+          }
+          renderLocationAccordion(elSearchInput ? elSearchInput.value : "");
+        });
+
+        regionBox.appendChild(regionHeader);
+
+        // If Region Expanded, Render Level 3: Cities
+        if (isRegionExpanded && matchingCities.length > 0) {
+          const citiesContainer = document.createElement('div');
+          citiesContainer.className = 'px-2 py-1.5 flex flex-col gap-1 bg-slate-950/60 border-t border-slate-800/40';
+
+          matchingCities.forEach(({ cityIdx, cityRow }) => {
+            const cityName = cityRow[0];
+            const lat = cityRow[1];
+            const lon = cityRow[2];
+            const cKey = `${cIdx}-${rIdx}-${cityIdx}`;
+            const isSelected = selectedCityKey === cKey;
+
+            const cityItem = document.createElement('div');
+            if (isSelected) {
+              cityItem.className = 'px-3 py-2 rounded-lg bg-indigo-600 text-white font-semibold flex items-center justify-between text-xs cursor-pointer shadow-md shadow-indigo-600/30';
+            } else {
+              cityItem.className = 'px-3 py-2 rounded-lg hover:bg-slate-800/70 text-slate-300 flex items-center justify-between text-xs cursor-pointer transition-colors duration-150';
+            }
+
+            cityItem.innerHTML = `
+              <span>${cityName}</span>
+              <span class="${isSelected ? 'text-indigo-100' : 'text-slate-400'} text-[10px] font-mono">${lat}, ${lon}</span>
+            `;
+
+            cityItem.addEventListener('click', (e) => {
+              e.stopPropagation();
+              selectedCityKey = cKey;
+              elLatInput.value = lat;
+              elLonInput.value = lon;
+
+              const fullLabel = `${cityName}, ${regionName}, ${countryName}`;
+              fetchForecast(lat, lon, fullLabel);
+              renderLocationAccordion(elSearchInput ? elSearchInput.value : "");
+            });
+
+            citiesContainer.appendChild(cityItem);
+          });
+
+          regionBox.appendChild(citiesContainer);
+        }
+
+        regionsContainer.appendChild(regionBox);
+      });
+
+      countryCard.appendChild(regionsContainer);
+    }
+
+    elLocationAccordion.appendChild(countryCard);
+  });
+
+  if (totalMatchCount === 0) {
+    elLocationAccordion.innerHTML = `<div class="text-center py-6 text-xs text-slate-400">No matching locations found.</div>`;
+  }
+}
+
+if (elSearchBtn) {
+  elSearchBtn.addEventListener('click', () => {
+    renderLocationAccordion(elSearchInput ? elSearchInput.value : "");
+  });
+}
+
+if (elSearchInput) {
+  elSearchInput.addEventListener('input', () => {
+    renderLocationAccordion(elSearchInput.value);
+  });
+}
 
 elFetchBtn.addEventListener('click', () => {
   const latVal = parseFloat(elLatInput.value);
   const lonVal = parseFloat(elLonInput.value);
 
-  // Validate range
   if (isNaN(latVal) || latVal < -90 || latVal > 90) {
     showError("Please enter a valid Latitude between -90 and 90.");
     return;
@@ -610,93 +708,13 @@ elFetchBtn.addEventListener('click', () => {
     return;
   }
 
-  // Update Dropdown to 'custom' if the custom fields don't match any preset coordinate exactly
-  let matchesPreset = false;
-  for (let key in presetCities) {
-    const [plat, plon] = key.split(',').map(Number);
-    if (Math.abs(plat - latVal) < 0.0001 && Math.abs(plon - lonVal) < 0.0001) {
-      elCitySelect.value = key;
-      matchesPreset = true;
-      break;
-    }
-  }
-
-  if (!matchesPreset) {
-    elCitySelect.value = 'custom';
-  }
-
-  fetchForecast(latVal, lonVal);
+  fetchForecast(latVal, lonVal, `Custom (${latVal.toFixed(2)}, ${lonVal.toFixed(2)})`);
 });
 
-// Dynamic Geocoding Search handler
-async function performGeocodingSearch(query) {
-  if (!query || query.trim().length === 0) return;
-
-  try {
-    const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`);
-    if (!res.ok) throw new Error("Geocoding search failed");
-    const data = await res.json();
-
-    if (!data.results || data.results.length === 0) {
-      elSearchResults.innerHTML = `<div class="p-3 text-xs text-slate-400">No results found for "${query}"</div>`;
-      elSearchResults.classList.remove('hidden');
-      return;
-    }
-
-    elSearchResults.innerHTML = '';
-    data.results.forEach(loc => {
-      const item = document.createElement('div');
-      item.className = 'p-3 hover:bg-slate-800 cursor-pointer text-xs flex flex-col border-b border-slate-800 last:border-0';
-      const name = loc.name;
-      const admin = loc.admin1 ? `, ${loc.admin1}` : '';
-      const country = loc.country ? `, ${loc.country}` : '';
-      const fullLabel = `${name}${admin}${country}`;
-
-      item.innerHTML = `
-        <span class="font-bold text-slate-200">${name}</span>
-        <span class="text-[10px] text-slate-400">${loc.admin1 || ''} ${loc.country || ''} (${loc.latitude.toFixed(2)}, ${loc.longitude.toFixed(2)})</span>
-      `;
-
-      item.addEventListener('click', () => {
-        elLatInput.value = loc.latitude;
-        elLonInput.value = loc.longitude;
-        elCitySelect.value = 'custom';
-        elSearchResults.classList.add('hidden');
-        elSearchInput.value = fullLabel;
-        fetchForecast(loc.latitude, loc.longitude);
-      });
-
-      elSearchResults.appendChild(item);
-    });
-
-    elSearchResults.classList.remove('hidden');
-  } catch (err) {
-    console.error(err);
-    showError("Failed to search location.");
-  }
-}
-
-if (elSearchBtn) {
-  elSearchBtn.addEventListener('click', () => performGeocodingSearch(elSearchInput.value));
-}
-
-if (elSearchInput) {
-  elSearchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      performGeocodingSearch(elSearchInput.value);
-    }
-  });
-}
-
-document.addEventListener('click', (e) => {
-  if (elSearchResults && !elSearchResults.contains(e.target) && e.target !== elSearchInput && e.target !== elSearchBtn) {
-    elSearchResults.classList.add('hidden');
-  }
-});
-
-// Initial Load: Fetch default (Berlin, Germany)
+// Initial Load: Load Dataset and Fetch Default Forecast
 window.addEventListener('DOMContentLoaded', () => {
+  loadWorldData();
   const defaultLat = 52.52;
   const defaultLon = 13.41;
-  fetchForecast(defaultLat, defaultLon);
+  fetchForecast(defaultLat, defaultLon, "Berlin, Germany");
 });
