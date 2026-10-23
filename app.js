@@ -474,9 +474,15 @@ function renderHourlyChart(hourly) {
 
 async function loadWorldData() {
   try {
-    const res = await fetch('data/world.json');
-    if (!res.ok) throw new Error("Could not load world locations dataset");
-    const data = await res.json();
+    let data = null;
+
+    if (window.WORLD_DATA && Array.isArray(window.WORLD_DATA)) {
+      data = window.WORLD_DATA;
+    } else {
+      const res = await fetch('data/world.json');
+      if (!res.ok) throw new Error("Could not load world locations dataset");
+      data = await res.json();
+    }
 
     // Append lowercased search index string to each city row [cityName, lat, lon, searchIndex]
     worldLocations = data.map(c => [
@@ -500,7 +506,7 @@ async function loadWorldData() {
   } catch (err) {
     console.error("Failed to load world data:", err);
     if (elLocationAccordion) {
-      elLocationAccordion.innerHTML = `<div class="p-4 text-xs text-rose-400">Error loading world dataset.</div>`;
+      elLocationAccordion.innerHTML = `<div class="p-4 text-xs text-rose-400">Error loading world dataset. Please run SkyCast via a web server or load data/world.js.</div>`;
     }
   }
 }
