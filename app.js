@@ -630,7 +630,7 @@ function renderLocationAccordion(filterQuery = "") {
 
     // Create Level 1: Country Card Element
     const countryCard = document.createElement('div');
-    countryCard.className = `rounded-xl border ${isCountrySelected ? 'border-indigo-500 ring-2 ring-indigo-500/30 bg-indigo-950/40 shadow-lg' : isCountryExpanded ? 'border-indigo-500/40 bg-slate-900/80 shadow-md' : 'border-slate-800/80 bg-slate-900/40 hover:border-slate-700/80'} overflow-hidden transition-all duration-200`;
+    countryCard.className = `shrink-0 rounded-xl border ${isCountrySelected ? 'border-indigo-500 ring-2 ring-indigo-500/30 bg-indigo-950/40 shadow-lg' : isCountryExpanded ? 'border-indigo-500/40 bg-slate-900/80 shadow-md' : 'border-slate-800/80 bg-slate-900/40 hover:border-slate-700/80'} overflow-hidden transition-all duration-200`;
 
     const countryHeader = document.createElement('div');
     countryHeader.className = 'px-3.5 py-3 flex items-center justify-between cursor-pointer select-none';
