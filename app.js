@@ -189,7 +189,7 @@ async function fetchForecast(lat, lon) {
   showError(null);
 
   try {
-    const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code&hourly=temperature_2m&current=temperature_2m`);
+    const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code&hourly=temperature_2m&current=temperature_2m,weather_code&timezone=auto`);
     if (!response.ok) {
       throw new Error(`Open-Meteo returned status ${response.status}`);
     }
@@ -266,9 +266,9 @@ function renderWeatherDashboard() {
   elCurrentLat.textContent = latVal;
   elCurrentLon.textContent = lonVal;
 
-  // Determine current weather code
-  const todayWmoCode = daily.weather_code && daily.weather_code[0] !== undefined ? daily.weather_code[0] : 0;
-  const wmoInfo = getWMOInfo(todayWmoCode);
+  // Determine current weather code (prioritize current.weather_code over daily summary)
+  const currentWmoCode = current.weather_code !== undefined ? current.weather_code : (daily.weather_code && daily.weather_code[0] !== undefined ? daily.weather_code[0] : 0);
+  const wmoInfo = getWMOInfo(currentWmoCode);
 
   // Set weather icons and current temp
   elCurrentWeatherIcon.className = `fa-solid ${wmoInfo.icon} ${wmoInfo.color} animate-pulse`;
