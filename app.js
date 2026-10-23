@@ -44,19 +44,7 @@ let selectedDayIndex = 0; // 0 to 6 representing forecast days
 let hourlyByDay = [];
 let timesByDay = [];
 
-// Hierarchical Multi-Dimensional Array Dataset for World Locations:
-// worldLocations = [ countryRow, ... ]
-// countryRow = [ code, countryName, regionsArray ]
-// regionsArray = [ regionRow, ... ]
-// regionRow = [ regionName, citiesArray ]
-// citiesArray = [ cityRow, ... ]
-// cityRow = [ cityName, latNumber, lonNumber ]
-let worldLocations = [];
 let activeLocationLabel = "Berlin, Germany";
-let expandedCountries = new Set();
-let expandedRegions = new Set();
-let regionCityLimits = new Map(); // Maps regionKey to visible city limit count
-let selectedLocationKey = ""; // "c-cIdx" or "r-cIdx-rIdx" or "city-cIdx-rIdx-cityIdx"
 
 // Converts a flat array of 168 elements into a 7x24 2D grid array
 function buildDayGrid(flatList) {
@@ -89,11 +77,6 @@ function formatTemp(value) {
 const elLatInput = document.getElementById('lat-input');
 const elLonInput = document.getElementById('lon-input');
 const elFetchBtn = document.getElementById('fetch-btn');
-
-// Search / Filter Elements
-const elSearchInput = document.getElementById('search-input');
-const elSearchBtn = document.getElementById('search-btn');
-const elLocationAccordion = document.getElementById('location-accordion');
 
 // Active selection card elements
 const elActiveSelectionTitle = document.getElementById('active-selection-title');
@@ -469,382 +452,432 @@ function renderHourlyChart(hourly) {
   };
 }
 
-// ----------------------------------------------------
-// Load and Render 3-Level Multi-Dimensional Accordion
-// ----------------------------------------------------
+if (elFetchBtn) {
+  elFetchBtn.addEventListener('click', () => {
+    const latVal = parseFloat(elLatInput.value);
+    const lonVal = parseFloat(elLonInput.value);
 
-async function loadWorldData() {
-  try {
-    let data = null;
+    if (isNaN(latVal) || latVal < -90 || latVal > 90) {
+      showError("Please enter a valid Latitude between -90 and 90.");
+      return;
+    }
+    if (isNaN(lonVal) || lonVal < -180 || lonVal > 180) {
+      showError("Please enter a valid Longitude between -180 and 180.");
+      return;
+    }
 
-    if (window.WORLD_DATA && Array.isArray(window.WORLD_DATA) && window.WORLD_DATA.length > 0) {
-      data = window.WORLD_DATA;
+    fetchForecast(latVal, lonVal, `Custom (${latVal.toFixed(2)}, ${lonVal.toFixed(2)})`);
+  });
+}
+
+/* Browse by Country (Feature 4) - SkyCast
+ * Country -> Province/Region -> City accordion backed by data/world.json.
+ * Data is a multi-dimensional array: world[country][region][city].
+ * Requires window.loadWeather(lat, lon, label) to be defined in app.js.
+ */
+(function () {
+  'use strict';
+
+  // ---- Array layout (named indexes instead of raw numbers) ----
+  // world   = [ [code, name, regions], ... ]
+  // regions = [ [regionName, cities], ... ]
+  // cities  = [ [cityName, lat, lon, searchText], ... ]  (searchText added on load)
+  var COUNTRY_CODE = 0, COUNTRY_NAME = 1, COUNTRY_REGIONS = 2;
+  var REGION_NAME = 0, REGION_CITIES = 1;
+  var CITY_NAME = 0, CITY_LAT = 1, CITY_LON = 2, CITY_SEARCH = 3;
+
+  var DATA_URL = 'data/world.json';
+  var PAGE_SIZE = 100;          // cities shown per region before "Show more"
+  var MIN_QUERY = 2;            // search starts at 2 characters
+  var MAX_COUNTRIES = 12;       // search result caps
+  var MAX_REGIONS = 15;
+  var MAX_CITIES = 8;
+  var DEBOUNCE_MS = 150;
+  var DEFAULT_COUNTRY = 'PH';
+  var DEFAULT_REGION = 'South Cotabato';
+  var DEFAULT_CITY = 'City of Koronadal';
+
+  var world = [];
+  var state = {
+    ready: false,
+    failed: false,
+    openCountry: -1,   // country index, -1 = none
+    openRegion: '',    // "countryIndex|regionIndex"
+    sel: null,         // { k: country, j: region, c: city } indexes
+    q: '',
+    shown: {}          // regionId -> how many cities are visible
+  };
+
+  var listEl, searchEl, labelEl, coordsEl, searchTimer = null, warned = false;
+
+  // ---------- small DOM helpers (textContent only, never innerHTML) ----------
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  function chevron(size) {
+    var ns = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('width', size);
+    svg.setAttribute('height', size);
+    svg.setAttribute('viewBox', '0 0 16 16');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    var path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', 'M6 3l5 5-5 5');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', 'currentColor');
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(path);
+    var wrap = el('span', 'cb-chevron');
+    wrap.appendChild(svg);
+    return wrap;
+  }
+
+  function plural(n, one, many) {
+    return n === 1 ? '1 ' + one : n + ' ' + many;
+  }
+
+  function message(text, extraClass) {
+    return el('div', 'cb-message' + (extraClass ? ' ' + extraClass : ''), text);
+  }
+
+  function rowButton(className, action, key, attrs) {
+    var b = el('button', className);
+    b.type = 'button';
+    b.setAttribute('data-action', action);
+    b.setAttribute('data-key', key);
+    for (var name in attrs) {
+      if (Object.prototype.hasOwnProperty.call(attrs, name)) b.setAttribute('data-' + name, attrs[name]);
+    }
+    return b;
+  }
+
+  // ---------- view model (what to show for the current state) ----------
+  function range(from, to) {
+    var out = [];
+    for (var i = from; i < to; i++) out.push(i);
+    return out;
+  }
+
+  function buildBrowseView() {
+    var countries = [];
+    for (var k = 0; k < world.length; k++) {
+      var regionList = world[k][COUNTRY_REGIONS];
+      var open = state.openCountry === k;
+      var regions = [];
+      if (open) {
+        for (var j = 0; j < regionList.length; j++) {
+          var rid = k + '|' + j;
+          var total = regionList[j][REGION_CITIES].length;
+          var rOpen = state.openRegion === rid;
+          var cities = [];
+          var hidden = 0;
+          if (rOpen) {
+            var limit = state.shown[rid] || PAGE_SIZE;
+            cities = range(0, Math.min(limit, total));
+            hidden = Math.max(0, total - limit);
+          }
+          regions.push({ j: j, open: rOpen, total: total, cities: cities, hidden: hidden });
+        }
+      }
+      countries.push({ k: k, open: open, regionCount: regionList.length, regions: regions });
+    }
+    return { searching: false, capped: false, countries: countries };
+  }
+
+  function buildSearchView(q) {
+    var countries = [];
+    var capped = false;
+    for (var k = 0; k < world.length; k++) {
+      var country = world[k];
+      var countryHit = country[COUNTRY_NAME].toLowerCase().indexOf(q) !== -1;
+      var regionList = country[COUNTRY_REGIONS];
+      var regions = [];
+      for (var j = 0; j < regionList.length; j++) {
+        var region = regionList[j];
+        var cityList = region[REGION_CITIES];
+        var regionHit = countryHit || region[REGION_NAME].toLowerCase().indexOf(q) !== -1;
+        var matches = [];
+        if (regionHit) {
+          matches = range(0, cityList.length);
+        } else {
+          for (var c = 0; c < cityList.length; c++) {
+            if (cityList[c][CITY_SEARCH].indexOf(q) !== -1) matches.push(c);
+          }
+        }
+        if (!matches.length) continue;
+        if (regions.length >= MAX_REGIONS) { capped = true; break; }
+        var total = matches.length;
+        if (matches.length > MAX_CITIES) { matches = matches.slice(0, MAX_CITIES); capped = true; }
+        regions.push({ j: j, open: true, total: total, cities: matches, hidden: 0 });
+      }
+      if (!regions.length) continue;
+      if (countries.length >= MAX_COUNTRIES) { capped = true; break; }
+      countries.push({ k: k, open: true, regionCount: regions.length, regions: regions });
+    }
+    return { searching: true, capped: capped, countries: countries };
+  }
+
+  function buildView() {
+    var q = state.q.trim().toLowerCase();
+    return q.length >= MIN_QUERY ? buildSearchView(q) : buildBrowseView();
+  }
+
+  // ---------- rendering ----------
+  function renderCity(k, j, c) {
+    var city = world[k][COUNTRY_REGIONS][j][REGION_CITIES][c];
+    var selected = !!state.sel && state.sel.k === k && state.sel.j === j && state.sel.c === c;
+    var row = rowButton('cb-city-row' + (selected ? ' is-selected' : ''), 'city', 't:' + k + '|' + j + '|' + c, { k: k, j: j, c: c });
+    row.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    row.appendChild(el('span', 'cb-city-name', city[CITY_NAME]));
+    row.appendChild(el('span', 'cb-city-coords', city[CITY_LAT].toFixed(2) + ', ' + city[CITY_LON].toFixed(2)));
+    return row;
+  }
+
+  function renderRegion(k, rv) {
+    var region = world[k][COUNTRY_REGIONS][rv.j];
+    var rid = k + '|' + rv.j;
+    var wrap = el('div', 'cb-region');
+    var row = rowButton('cb-region-row' + (rv.open ? ' is-open' : ''), 'region', 'r:' + rid, { k: k, j: rv.j });
+    row.setAttribute('aria-expanded', rv.open ? 'true' : 'false');
+    row.appendChild(el('span', 'cb-grow', region[REGION_NAME]));
+    row.appendChild(el('span', 'cb-count', plural(rv.total, 'city', 'cities')));
+    row.appendChild(chevron(14));
+    wrap.appendChild(row);
+
+    if (rv.open) {
+      var list = el('div', 'cb-cities');
+      for (var i = 0; i < rv.cities.length; i++) list.appendChild(renderCity(k, rv.j, rv.cities[i]));
+      if (rv.hidden > 0) {
+        var more = rowButton('cb-more', 'more', 'm:' + rid, { k: k, j: rv.j });
+        more.textContent = 'Show ' + Math.min(PAGE_SIZE, rv.hidden) + ' more of ' + rv.hidden;
+        list.appendChild(more);
+      }
+      wrap.appendChild(list);
+    }
+    return wrap;
+  }
+
+  function renderCountry(cv) {
+    var country = world[cv.k];
+    var card = el('div', 'cb-country');
+    var row = rowButton('cb-country-row', 'country', 'c:' + cv.k, { k: cv.k });
+    row.setAttribute('aria-expanded', cv.open ? 'true' : 'false');
+    row.appendChild(el('span', 'cb-code', country[COUNTRY_CODE]));
+    row.appendChild(el('span', 'cb-grow', country[COUNTRY_NAME]));
+    row.appendChild(el('span', 'cb-count', plural(cv.regionCount, 'region', 'regions')));
+    row.appendChild(chevron(16));
+    card.appendChild(row);
+
+    if (cv.open) {
+      var body = el('div', 'cb-country-body');
+      for (var i = 0; i < cv.regions.length; i++) body.appendChild(renderRegion(cv.k, cv.regions[i]));
+      card.appendChild(body);
+    }
+    return card;
+  }
+
+  function render(animate) {
+    var focusKey = null;
+    var active = document.activeElement;
+    if (active && listEl.contains(active)) focusKey = active.getAttribute('data-key');
+    var scrollTop = listEl.scrollTop;
+
+    var frag = document.createDocumentFragment();
+    if (state.failed) {
+      frag.appendChild(message('Could not load the location data. Please reopen this page.', 'cb-message--error'));
+    } else if (!state.ready) {
+      frag.appendChild(message('Loading the world map data...'));
     } else {
-      try {
-        const res = await fetch('data/world.json');
-        if (res.ok) {
-          data = await res.json();
-        }
-      } catch (fetchErr) {
-        console.warn("fetch('data/world.json') failed, checking fallback dataset:", fetchErr);
+      var view = buildView();
+      if (!view.countries.length) frag.appendChild(message('No matching country, province or city.'));
+      for (var i = 0; i < view.countries.length; i++) frag.appendChild(renderCountry(view.countries[i]));
+      if (view.capped) frag.appendChild(el('div', 'cb-note', 'Showing the top matches. Keep typing to narrow it down.'));
+    }
+    listEl.replaceChildren(frag);
+    listEl.scrollTop = scrollTop;
+
+    // Play the 200ms chevron rotation for the row that was just toggled.
+    if (animate) {
+      var toggled = listEl.querySelector('[data-key="' + animate.key + '"]');
+      if (toggled) {
+        var now = toggled.getAttribute('aria-expanded');
+        toggled.setAttribute('aria-expanded', animate.wasOpen ? 'true' : 'false');
+        void toggled.offsetWidth; // force reflow so the transition runs
+        toggled.setAttribute('aria-expanded', now);
       }
     }
-
-    if (!data || !Array.isArray(data) || data.length === 0) {
-      // Emergency Default Fallback Dataset in case both external file imports fail
-      data = [
-        ["PH", "Philippines", [
-          ["National Capital Region", [
-            ["Manila", 14.60, 120.98],
-            ["Quezon City", 14.65, 121.05],
-            ["Makati", 14.55, 121.02],
-            ["Taguig", 14.52, 121.05]
-          ]],
-          ["Cebu", [
-            ["Cebu City", 10.31, 123.89],
-            ["Mandaue", 10.33, 123.94],
-            ["Lapu-Lapu City", 10.31, 123.95]
-          ]],
-          ["South Cotabato", [
-            ["City of Koronadal", 6.49, 124.89],
-            ["Banga", 6.45, 124.76],
-            ["General Santos", 6.12, 125.17]
-          ]]
-        ]],
-        ["DE", "Germany", [
-          ["Berlin", [["Berlin", 52.52, 13.41]]],
-          ["Bavaria", [["Munich", 48.14, 11.58], ["Nuremberg", 49.45, 11.08]]],
-          ["Hamburg", [["Hamburg", 53.55, 9.99]]]
-        ]],
-        ["US", "United States", [
-          ["California", [["Los Angeles", 34.05, -118.24], ["San Francisco", 37.77, -122.42]]],
-          ["New York", [["New York City", 40.71, -74.01]]],
-          ["Florida", [["Miami", 25.76, -80.19]]]
-        ]],
-        ["JP", "Japan", [
-          ["Tokyo", [["Tokyo", 35.68, 139.69]]],
-          ["Osaka", [["Osaka", 34.69, 135.50]]],
-          ["Kyoto", [["Kyoto", 35.01, 135.77]]]
-        ]]
-      ];
-    }
-
-    // Append lowercased search index string to each city row [cityName, lat, lon, searchIndex]
-    worldLocations = data.map(c => [
-      c[0], // code
-      c[1], // countryName
-      c[2].map(r => [
-        r[0], // regionName
-        r[1].map(ct => [ct[0], ct[1], ct[2], `${ct[0]} ${r[0]} ${c[1]}`.toLowerCase()])
-      ])
-    ]);
-
-    // Auto expand Philippines or first country by default
-    const phIdx = worldLocations.findIndex(c => c[0] === 'PH' || c[1] === 'Philippines');
-    if (phIdx !== -1) {
-      expandedCountries.add(phIdx);
-      expandedRegions.add(`${phIdx}-0`);
-    } else if (worldLocations.length > 0) {
-      expandedCountries.add(0);
-      expandedRegions.add('0-0');
-    }
-
-    renderLocationAccordion();
-  } catch (err) {
-    console.error("Failed to load world data:", err);
-    if (elLocationAccordion) {
-      elLocationAccordion.innerHTML = `<div class="p-4 text-xs text-rose-400">Error loading world dataset.</div>`;
+    // Keep keyboard focus on the same row after the list is rebuilt.
+    if (focusKey) {
+      var again = listEl.querySelector('[data-key="' + focusKey + '"]');
+      if (again) again.focus({ preventScroll: true });
     }
   }
-}
 
-function renderLocationAccordion(filterQuery = "") {
-  if (!elLocationAccordion) return;
-  const q = (filterQuery || "").trim().toLowerCase();
-
-  elLocationAccordion.innerHTML = '';
-
-  if (worldLocations.length === 0) {
-    elLocationAccordion.innerHTML = `<div class="text-center py-6 text-xs text-slate-400">No locations loaded.</div>`;
-    return;
+  function updateSummary() {
+    if (!state.sel) {
+      labelEl.textContent = 'No city selected';
+      coordsEl.textContent = '';
+      return;
+    }
+    var country = world[state.sel.k];
+    var region = country[COUNTRY_REGIONS][state.sel.j];
+    var city = region[REGION_CITIES][state.sel.c];
+    labelEl.textContent = city[CITY_NAME] + ', ' + region[REGION_NAME] + ', ' + country[COUNTRY_NAME];
+    coordsEl.textContent = 'Lat ' + city[CITY_LAT].toFixed(2) + '  Lon ' + city[CITY_LON].toFixed(2);
   }
 
-  let totalMatchCount = 0;
-
-  // Traverse 3D Multi-Dimensional Array
-  // Level 1: worldLocations[cIdx] -> [code, countryName, regions]
-  worldLocations.forEach((countryRow, cIdx) => {
-    const code = countryRow[0];
-    const countryName = countryRow[1];
-    const regions = countryRow[2];
-
-    // Calculate total region count and total city count
-    const totalRegions = regions.length;
-
-    // Check if country matches or any child region/city matches filter query
-    let countryMatches = false;
-    if (q) {
-      countryMatches = countryName.toLowerCase().includes(q) || code.toLowerCase().includes(q);
+  // ---------- weather integration ----------
+  function callLoadWeather(lat, lon, label) {
+    if (typeof window.loadWeather !== 'function') {
+      if (!warned) { warned = true; console.warn('Browse by Country: window.loadWeather(lat, lon, label) is not defined in app.js'); }
+      return;
     }
-
-    // Filter regions
-    const matchingRegions = [];
-    regions.forEach((regionRow, rIdx) => {
-      const regionName = regionRow[0];
-      const cities = regionRow[1];
-
-      let regionMatches = false;
-      if (q) {
-        regionMatches = countryMatches || regionName.toLowerCase().includes(q);
-      }
-
-      const matchingCities = [];
-      cities.forEach((cityRow, cityIdx) => {
-        const cityName = cityRow[0];
-        const searchIdx = cityRow[3];
-        if (!q || regionMatches || searchIdx.includes(q)) {
-          matchingCities.push({ cityIdx, cityRow });
-        }
-      });
-
-      if (matchingCities.length > 0) {
-        matchingRegions.push({ rIdx, regionName, matchingCities });
-      }
-    });
-
-    if (q && matchingRegions.length === 0) return; // Skip non-matching country
-
-    totalMatchCount++;
-
-    const isCountryExpanded = q ? true : expandedCountries.has(cIdx);
-
-    // Find representative coordinates for Country (first city in first region)
-    let countryLat = null;
-    let countryLon = null;
-    if (regions.length > 0 && regions[0][1].length > 0) {
-      countryLat = regions[0][1][0][1];
-      countryLon = regions[0][1][0][2];
+    try {
+      window.loadWeather(lat, lon, label);
+    } catch (err) {
+      console.error('Browse by Country: loadWeather failed', err);
     }
+  }
 
-    const cKey = `c-${cIdx}`;
-    const isCountrySelected = selectedLocationKey === cKey;
+  function selectCity(sel, load) {
+    state.sel = sel;
+    var country = world[sel.k];
+    var city = country[COUNTRY_REGIONS][sel.j][REGION_CITIES][sel.c];
+    updateSummary();
+    render();
+    if (load) callLoadWeather(city[CITY_LAT], city[CITY_LON], city[CITY_NAME] + ', ' + country[COUNTRY_NAME]);
+  }
 
-    // Create Level 1: Country Card Element
-    const countryCard = document.createElement('div');
-    countryCard.className = `shrink-0 rounded-xl border ${isCountrySelected ? 'border-indigo-500 ring-2 ring-indigo-500/30 bg-indigo-950/40 shadow-lg' : isCountryExpanded ? 'border-indigo-500/40 bg-slate-900/80 shadow-md' : 'border-slate-800/80 bg-slate-900/40 hover:border-slate-700/80'} overflow-hidden transition-all duration-200`;
+  // ---------- events ----------
+  function onListClick(event) {
+    var btn = event.target.closest('button[data-action]');
+    if (!btn || !listEl.contains(btn)) return;
+    var action = btn.getAttribute('data-action');
+    var k = Number(btn.getAttribute('data-k'));
+    var j = Number(btn.getAttribute('data-j'));
+    var c = Number(btn.getAttribute('data-c'));
+    var key = btn.getAttribute('data-key');
+    var wasOpen = btn.getAttribute('aria-expanded') === 'true';
 
-    const countryHeader = document.createElement('div');
-    countryHeader.className = 'px-3.5 py-3 flex items-center justify-between cursor-pointer select-none';
-    countryHeader.innerHTML = `
-      <div class="flex items-center gap-2.5">
-        <span class="px-2 py-0.5 text-[10px] font-bold bg-indigo-900/60 text-indigo-300 rounded border border-indigo-700/50 uppercase tracking-wider">${code}</span>
-        <span class="font-bold text-slate-100 text-xs hover:text-indigo-300 transition-colors">${countryName}</span>
-      </div>
-      <div class="flex items-center gap-2 text-slate-400 text-[11px]">
-        ${countryLat !== null ? `<button class="select-country-btn px-2 py-0.5 text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white rounded font-medium transition-all shadow-sm">Select Country</button>` : ''}
-        <span class="text-[10px]">${totalRegions} ${totalRegions === 1 ? 'region' : 'regions'}</span>
-        <i class="toggle-country-chevron fa-solid ${isCountryExpanded ? 'fa-chevron-down text-indigo-400' : 'fa-chevron-right'} text-[10px] p-1"></i>
-      </div>
-    `;
-
-    // Click on Select Country button to fetch country forecast
-    const selectCountryBtn = countryHeader.querySelector('.select-country-btn');
-    if (selectCountryBtn) {
-      selectCountryBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (countryLat !== null && countryLon !== null) {
-          selectedLocationKey = cKey;
-          elLatInput.value = countryLat;
-          elLonInput.value = countryLon;
-          fetchForecast(countryLat, countryLon, countryName);
-          renderLocationAccordion(elSearchInput ? elSearchInput.value : "");
-        }
-      });
-    }
-
-    // Click header to toggle expansion
-    countryHeader.addEventListener('click', () => {
-      if (expandedCountries.has(cIdx)) {
-        expandedCountries.delete(cIdx);
+    if (action === 'country') {
+      if (state.openCountry === k) {
+        state.openCountry = -1;
       } else {
-        expandedCountries.add(cIdx);
+        state.openCountry = k;
+        state.openRegion = '';
       }
-      renderLocationAccordion(elSearchInput ? elSearchInput.value : "");
-    });
-
-    countryCard.appendChild(countryHeader);
-
-    // If Expanded, Render Level 2: Regions
-    if (isCountryExpanded && matchingRegions.length > 0) {
-      const regionsContainer = document.createElement('div');
-      regionsContainer.className = 'border-t border-slate-800/80 px-2 py-2 flex flex-col gap-1.5 bg-slate-950/50';
-
-      matchingRegions.forEach(({ rIdx, regionName, matchingCities }) => {
-        const regionKey = `${cIdx}-${rIdx}`;
-        const isRegionExpanded = q ? true : expandedRegions.has(regionKey);
-        const totalCitiesInRegion = matchingCities.length;
-
-        // Representative coordinates for Region (first matching city in region)
-        let regionLat = null;
-        let regionLon = null;
-        if (matchingCities.length > 0) {
-          regionLat = matchingCities[0].cityRow[1];
-          regionLon = matchingCities[0].cityRow[2];
-        }
-
-        const rKey = `r-${cIdx}-${rIdx}`;
-        const isRegionSelected = selectedLocationKey === rKey;
-
-        const regionBox = document.createElement('div');
-        regionBox.className = `rounded-lg overflow-hidden border ${isRegionSelected ? 'border-indigo-500 ring-1 ring-indigo-500/40 bg-indigo-950/30' : 'border-slate-800/60 bg-slate-900/30'}`;
-
-        const regionHeader = document.createElement('div');
-        regionHeader.className = 'px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/40 text-xs select-none';
-        regionHeader.innerHTML = `
-          <span class="font-medium text-slate-200 hover:text-indigo-300 transition-colors">${regionName}</span>
-          <div class="flex items-center gap-2 text-slate-400 text-[10px]">
-            ${regionLat !== null ? `<button class="select-region-btn px-2 py-0.5 text-[9px] bg-indigo-600/90 hover:bg-indigo-500 text-white rounded font-medium transition-all shadow-sm">Select Region</button>` : ''}
-            <span>${totalCitiesInRegion} ${totalCitiesInRegion === 1 ? 'city' : 'cities'}</span>
-            <i class="fa-solid ${isRegionExpanded ? 'fa-chevron-down text-indigo-400' : 'fa-chevron-right'} p-1"></i>
-          </div>
-        `;
-
-        const selectRegionBtn = regionHeader.querySelector('.select-region-btn');
-        if (selectRegionBtn) {
-          selectRegionBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (regionLat !== null && regionLon !== null) {
-              selectedLocationKey = rKey;
-              elLatInput.value = regionLat;
-              elLonInput.value = regionLon;
-              fetchForecast(regionLat, regionLon, `${regionName}, ${countryName}`);
-              renderLocationAccordion(elSearchInput ? elSearchInput.value : "");
-            }
-          });
-        }
-
-        regionHeader.addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (expandedRegions.has(regionKey)) {
-            expandedRegions.delete(regionKey);
-          } else {
-            expandedRegions.add(regionKey);
-          }
-          renderLocationAccordion(elSearchInput ? elSearchInput.value : "");
-        });
-
-        regionBox.appendChild(regionHeader);
-
-        // If Region Expanded, Render Level 3: Cities with chunked/paginated rendering
-        if (isRegionExpanded && matchingCities.length > 0) {
-          const citiesContainer = document.createElement('div');
-          citiesContainer.className = 'px-2 py-1.5 flex flex-col gap-1 bg-slate-950/60 border-t border-slate-800/40';
-
-          const limit = regionCityLimits.get(regionKey) || 50;
-          const visibleCities = q ? matchingCities : matchingCities.slice(0, limit);
-
-          visibleCities.forEach(({ cityIdx, cityRow }) => {
-            const cityName = cityRow[0];
-            const lat = cityRow[1];
-            const lon = cityRow[2];
-            const cityKey = `city-${cIdx}-${rIdx}-${cityIdx}`;
-            const isSelected = selectedLocationKey === cityKey;
-
-            const cityItem = document.createElement('div');
-            if (isSelected) {
-              cityItem.className = 'px-3 py-2 rounded-lg bg-indigo-600 text-white font-semibold flex items-center justify-between text-xs cursor-pointer shadow-md shadow-indigo-600/30';
-            } else {
-              cityItem.className = 'px-3 py-2 rounded-lg hover:bg-slate-800/70 text-slate-300 flex items-center justify-between text-xs cursor-pointer transition-colors duration-150';
-            }
-
-            cityItem.innerHTML = `
-              <div class="flex items-center gap-1.5 truncate pr-2">
-                <i class="fa-solid fa-city text-[10px] ${isSelected ? 'text-indigo-200' : 'text-slate-500'} shrink-0"></i>
-                <span class="truncate">${cityName}</span>
-              </div>
-              <span class="${isSelected ? 'text-indigo-100' : 'text-slate-400'} text-[10px] font-mono shrink-0">${lat}, ${lon}</span>
-            `;
-
-            cityItem.addEventListener('click', (e) => {
-              e.stopPropagation();
-              selectedLocationKey = cityKey;
-              elLatInput.value = lat;
-              elLonInput.value = lon;
-
-              const fullLabel = `${cityName}, ${regionName}, ${countryName}`;
-              fetchForecast(lat, lon, fullLabel);
-              renderLocationAccordion(elSearchInput ? elSearchInput.value : "");
-            });
-
-            citiesContainer.appendChild(cityItem);
-          });
-
-          // "Show More" Chunk Control
-          if (!q && matchingCities.length > limit) {
-            const showMoreBtn = document.createElement('button');
-            showMoreBtn.className = 'mt-1 py-1.5 text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/50 border border-indigo-800/50 rounded-lg transition-colors text-center w-full';
-            showMoreBtn.innerText = `Show more cities (${matchingCities.length - limit} remaining)...`;
-            showMoreBtn.addEventListener('click', (e) => {
-              e.stopPropagation();
-              regionCityLimits.set(regionKey, limit + 50);
-              renderLocationAccordion(elSearchInput ? elSearchInput.value : "");
-            });
-            citiesContainer.appendChild(showMoreBtn);
-          }
-
-          regionBox.appendChild(citiesContainer);
-        }
-
-        regionsContainer.appendChild(regionBox);
-      });
-
-      countryCard.appendChild(regionsContainer);
+      render({ key: key, wasOpen: wasOpen });
+    } else if (action === 'region') {
+      var rid = k + '|' + j;
+      state.openRegion = state.openRegion === rid ? '' : rid;
+      render({ key: key, wasOpen: wasOpen });
+    } else if (action === 'city') {
+      selectCity({ k: k, j: j, c: c }, true);
+    } else if (action === 'more') {
+      var id = k + '|' + j;
+      state.shown[id] = (state.shown[id] || PAGE_SIZE) + PAGE_SIZE;
+      render();
     }
-
-    elLocationAccordion.appendChild(countryCard);
-  });
-
-  if (totalMatchCount === 0) {
-    elLocationAccordion.innerHTML = `<div class="text-center py-6 text-xs text-slate-400">No matching locations found.</div>`;
-  }
-}
-
-if (elSearchBtn) {
-  elSearchBtn.addEventListener('click', () => {
-    renderLocationAccordion(elSearchInput ? elSearchInput.value : "");
-  });
-}
-
-if (elSearchInput) {
-  let searchDebounceTimer = null;
-  elSearchInput.addEventListener('input', () => {
-    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = setTimeout(() => {
-      renderLocationAccordion(elSearchInput.value);
-    }, 200);
-  });
-}
-
-elFetchBtn.addEventListener('click', () => {
-  const latVal = parseFloat(elLatInput.value);
-  const lonVal = parseFloat(elLonInput.value);
-
-  if (isNaN(latVal) || latVal < -90 || latVal > 90) {
-    showError("Please enter a valid Latitude between -90 and 90.");
-    return;
-  }
-  if (isNaN(lonVal) || lonVal < -180 || lonVal > 180) {
-    showError("Please enter a valid Longitude between -180 and 180.");
-    return;
   }
 
-  fetchForecast(latVal, lonVal, `Custom (${latVal.toFixed(2)}, ${lonVal.toFixed(2)})`);
-});
+  function onSearchInput() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () {
+      state.q = searchEl.value;
+      render();
+    }, DEBOUNCE_MS);
+  }
 
-// Initial Load: Load Dataset and Fetch Default Forecast
-window.addEventListener('DOMContentLoaded', () => {
-  loadWorldData();
-  const defaultLat = 52.52;
-  const defaultLon = 13.41;
-  fetchForecast(defaultLat, defaultLon, "Berlin, Germany");
-});
+  // ---------- data loading ----------
+  function prepareData() {
+    for (var k = 0; k < world.length; k++) {
+      var regions = world[k][COUNTRY_REGIONS];
+      for (var j = 0; j < regions.length; j++) {
+        var cities = regions[j][REGION_CITIES];
+        for (var c = 0; c < cities.length; c++) {
+          cities[c][CITY_SEARCH] = cities[c][CITY_NAME].toLowerCase();
+        }
+      }
+    }
+  }
+
+  function selectDefault() {
+    for (var k = 0; k < world.length; k++) {
+      if (world[k][COUNTRY_CODE] !== DEFAULT_COUNTRY) continue;
+      var regions = world[k][COUNTRY_REGIONS];
+      for (var j = 0; j < regions.length; j++) {
+        if (regions[j][REGION_NAME] !== DEFAULT_REGION) continue;
+        var cities = regions[j][REGION_CITIES];
+        var c = 0;
+        for (var i = 0; i < cities.length; i++) {
+          if (cities[i][CITY_NAME] === DEFAULT_CITY) { c = i; break; }
+        }
+        state.openCountry = k;
+        state.openRegion = k + '|' + j;
+        if (c >= PAGE_SIZE) state.shown[state.openRegion] = Math.ceil((c + 1) / PAGE_SIZE) * PAGE_SIZE;
+        selectCity({ k: k, j: j, c: c }, true);
+        var selectedRow = listEl.querySelector('.cb-city-row.is-selected');
+        if (selectedRow && selectedRow.scrollIntoView) selectedRow.scrollIntoView({ block: 'nearest' });
+        return;
+      }
+    }
+    render(); // default not found: just show the list
+  }
+
+  function loadDataset() {
+    if (window.WORLD_DATA && Array.isArray(window.WORLD_DATA) && window.WORLD_DATA.length > 0) {
+      world = window.WORLD_DATA;
+      prepareData();
+      state.ready = true;
+      selectDefault();
+      return;
+    }
+    fetch(DATA_URL)
+      .then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        world = data;
+        prepareData();
+        state.ready = true;
+        selectDefault();
+      })
+      .catch(function (err) {
+        console.error('Browse by Country: could not load ' + DATA_URL, err);
+        if (window.WORLD_DATA && Array.isArray(window.WORLD_DATA)) {
+          world = window.WORLD_DATA;
+          prepareData();
+          state.ready = true;
+          selectDefault();
+        } else {
+          state.failed = true;
+          render();
+        }
+      });
+  }
+
+  function init() {
+    listEl = document.getElementById('cb-list');
+    searchEl = document.getElementById('cb-search');
+    labelEl = document.getElementById('cb-summary-label');
+    coordsEl = document.getElementById('cb-summary-coords');
+    if (!listEl || !searchEl || !labelEl || !coordsEl) return;
+
+    listEl.addEventListener('click', onListClick); // one listener for every row
+    searchEl.addEventListener('input', onSearchInput);
+    render(); // shows "Loading..."
+
+    loadDataset();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();

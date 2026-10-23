@@ -53,6 +53,139 @@
       scrollbar-width: thin;
       scrollbar-color: #4f46e5 rgba(15, 23, 42, 0.6);
     }
+
+    /* Browse by Country (Feature 4) */
+    .cb-panel {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #e6e9f5;
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
+    .cb-panel *, .cb-panel *::before, .cb-panel *::after { box-sizing: border-box; }
+
+    .cb-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .cb-title { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+    .cb-badge {
+      font-size: 12px; font-weight: 600; color: #b9b3ff; background: #2a2650;
+      border: 1px solid #4a42a8; border-radius: 6px; padding: 4px 8px;
+    }
+    .cb-intro { margin: 0; font-size: 14px; line-height: 1.5; color: #9aa4c4; }
+
+    .cb-search {
+      width: 100%; height: 44px; padding: 0 14px;
+      background: #1a2033; border: 1px solid #2a3350; border-radius: 10px;
+      color: #e6e9f5; font-size: 15px; font-family: inherit;
+    }
+
+    /* Scrolling list (thin custom scrollbar) */
+    .cb-list {
+      flex: 1; min-height: 160px; max-height: 480px;
+      overflow-y: auto; padding-right: 6px;
+      display: flex; flex-direction: column; gap: 8px;
+      scrollbar-width: thin; scrollbar-color: #4a42a8 #151b2d;
+    }
+    .cb-list::-webkit-scrollbar { width: 10px; }
+    .cb-list::-webkit-scrollbar-track { background: #151b2d; border-radius: 10px; }
+    .cb-list::-webkit-scrollbar-thumb { background: #4a42a8; border-radius: 10px; border: 2px solid #151b2d; }
+    .cb-list::-webkit-scrollbar-thumb:hover { background: #5b4fe9; }
+
+    /* Shared button reset */
+    .cb-country-row, .cb-region-row, .cb-city-row, .cb-more {
+      font-family: inherit; text-align: left; cursor: pointer;
+    }
+
+    /* Country card */
+    .cb-country {
+      flex: none; overflow: hidden;
+      background: #1a2033; border: 1px solid #2a3350; border-radius: 12px;
+    }
+    .cb-country-row {
+      width: 100%; min-height: 48px; padding: 12px 14px;
+      display: flex; align-items: center; gap: 12px;
+      background: transparent; border: 0; color: #e6e9f5;
+      font-size: 15px; font-weight: 600;
+    }
+    .cb-code {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.05em;
+      color: #b9b3ff; background: #2a2650; border-radius: 4px; padding: 3px 6px;
+    }
+    .cb-grow { flex: 1; min-width: 0; }
+    .cb-count { font-size: 12px; font-weight: 500; color: #9aa4c4; }
+
+    .cb-chevron {
+      display: inline-flex; flex: none; color: #9aa4c4;
+      transition: transform 200ms ease; transform: rotate(0deg);
+    }
+    .cb-country-row[aria-expanded="true"] .cb-chevron,
+    .cb-region-row[aria-expanded="true"] .cb-chevron { transform: rotate(90deg); }
+
+    .cb-country-body {
+      display: flex; flex-direction: column; gap: 4px;
+      padding: 8px; border-top: 1px solid #2a3350;
+    }
+
+    /* Province / region row */
+    .cb-region { display: flex; flex-direction: column; }
+    .cb-region-row {
+      width: 100%; min-height: 44px; padding: 10px 12px;
+      display: flex; align-items: center; gap: 10px;
+      background: transparent; border: 0; border-radius: 8px; color: #e6e9f5;
+      font-size: 14px; font-weight: 600;
+    }
+    .cb-region-row.is-open { background: #232b44; }
+
+    /* City rows */
+    .cb-cities { display: flex; flex-direction: column; gap: 2px; padding: 2px 0 6px 14px; }
+    .cb-city-row {
+      width: 100%; min-height: 44px; padding: 10px 12px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      background: transparent; border: 0; border-radius: 8px; color: #e6e9f5;
+      font-size: 14px;
+    }
+    .cb-city-coords { flex: none; font-size: 12px; color: #9aa4c4; }
+    .cb-city-row.is-selected { background: #5b4fe9; color: #ffffff; }
+    .cb-city-row.is-selected .cb-city-coords { color: #e4e1ff; }
+
+    .cb-more {
+      width: 100%; min-height: 44px; padding: 10px 12px;
+      background: transparent; border: 1px solid #4a42a8; border-radius: 8px;
+      color: #b9b3ff; font-size: 14px; font-weight: 600; text-align: center;
+    }
+
+    /* Messages */
+    .cb-message { padding: 24px 8px; text-align: center; font-size: 14px; color: #9aa4c4; }
+    .cb-message--error { color: #ffb4a8; }
+    .cb-note { padding: 8px; text-align: center; font-size: 13px; color: #9aa4c4; }
+
+    /* Summary card */
+    .cb-summary {
+      flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 12px 14px; background: #1a2033; border: 1px solid #2a3350; border-radius: 12px;
+    }
+    .cb-summary-left { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .cb-summary-hint { font-size: 12px; color: #9aa4c4; }
+    .cb-summary-label { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+    .cb-summary-coords { flex: none; font-size: 12px; color: #9aa4c4; text-align: right; white-space: pre; }
+
+    /* Keyboard focus */
+    .cb-panel button:focus-visible,
+    .cb-panel input:focus-visible { outline: 2px solid #8b84ff; outline-offset: 2px; }
+
+    @media (max-width: 480px) {
+      .cb-panel { padding: 16px; }
+      .cb-list { max-height: 60vh; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .cb-chevron { transition: none; }
+    }
   </style>
 </head>
 <body class="text-slate-100 min-h-screen flex flex-col pb-12">
@@ -125,60 +258,23 @@
     <!-- Left Sidebar: Location & Controls -->
     <section class="lg:col-span-4 flex flex-col gap-6">
 
-      <!-- Selector Card & Accordion Location Explorer -->
-      <div class="glass-card rounded-2xl p-6 shadow-xl flex flex-col gap-5">
-        <h2 class="text-lg font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-earth-americas text-indigo-400"></i> Worldwide Location Explorer
-        </h2>
-
-        <!-- Filter Search Input -->
-        <div class="flex flex-col gap-2 relative">
-          <label for="search-input" class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Filter Locations / Search</label>
-          <div class="flex gap-2">
-            <input type="text" id="search-input" class="w-full glass-input rounded-xl px-4 py-2.5 text-sm" placeholder="Filter countries, regions or cities...">
-            <button id="search-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center gap-2">
-              <i class="fa-solid fa-magnifying-glass"></i>
-            </button>
-          </div>
+      <!-- Browse by Country (Feature 4) -->
+      <section id="country-browser" class="cb-panel rounded-2xl shadow-xl" aria-label="Browse by country">
+        <div class="cb-header">
+          <h2 class="cb-title">Browse by Country</h2>
+          <span class="cb-badge">Feature 4</span>
         </div>
-
-        <!-- Hierarchical Multi-Dimensional Accordion Container -->
-        <div id="location-accordion" class="flex flex-col gap-2 max-h-[420px] overflow-y-auto pr-2 border border-slate-800/80 rounded-2xl p-2 bg-slate-950/40">
-          <div class="text-center py-8 text-xs text-slate-400">Loading worldwide locations...</div>
+        <p class="cb-intro">Every country, province or region, and city in the world. Pick one to load its forecast.</p>
+        <input id="cb-search" class="cb-search" type="search" aria-label="Search country, province or city" placeholder="Search country, province or city" autocomplete="off">
+        <div id="cb-list" class="cb-list"></div>
+        <div class="cb-summary">
+          <div class="cb-summary-left">
+            <span class="cb-summary-hint">Showing forecast for</span>
+            <span id="cb-summary-label" class="cb-summary-label">No city selected</span>
+          </div>
+          <span id="cb-summary-coords" class="cb-summary-coords"></span>
         </div>
-
-        <!-- Active Forecast Status Box (as seen in image) -->
-        <div id="active-selection-card" class="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 shadow-lg flex justify-between items-center text-xs">
-          <div class="flex flex-col gap-0.5">
-            <span class="text-[10px] text-slate-400 uppercase font-semibold">Showing forecast for</span>
-            <span id="active-selection-title" class="font-bold text-white text-sm">Berlin, Germany</span>
-          </div>
-          <div class="text-right flex flex-col text-[11px] text-indigo-300 font-mono">
-            <span id="active-selection-lat">Lat 52.52</span>
-            <span id="active-selection-lon">Lon 13.41</span>
-          </div>
-        </div>
-
-        <!-- Collapsible Custom Coordinates Option -->
-        <details class="text-xs text-slate-400 border-t border-slate-800/80 pt-3">
-          <summary class="cursor-pointer font-semibold uppercase tracking-wider text-[10px] hover:text-slate-200 flex items-center gap-1">
-            <i class="fa-solid fa-sliders"></i> Manual Coordinates Input
-          </summary>
-          <div class="grid grid-cols-2 gap-3 mt-3">
-            <div>
-              <label for="lat-input" class="text-[10px] text-slate-400 uppercase">Latitude</label>
-              <input type="number" id="lat-input" step="any" min="-90" max="90" value="52.52" class="w-full glass-input rounded-xl px-3 py-2 text-xs mt-1" placeholder="52.52">
-            </div>
-            <div>
-              <label for="lon-input" class="text-[10px] text-slate-400 uppercase">Longitude</label>
-              <input type="number" id="lon-input" step="any" min="-180" max="180" value="13.41" class="w-full glass-input rounded-xl px-3 py-2 text-xs mt-1" placeholder="13.41">
-            </div>
-          </div>
-          <button id="fetch-btn" class="w-full mt-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 px-3 rounded-xl transition-all duration-200 text-xs">
-            Fetch Manual Coordinates
-          </button>
-        </details>
-      </div>
+      </section>
 
       <!-- Quick Info Card -->
       <div class="glass-card rounded-2xl p-6 shadow-xl flex flex-col gap-4">
