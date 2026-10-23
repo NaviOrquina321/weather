@@ -79,6 +79,20 @@ const presetCities = {
   "48.8566,2.3522": "Paris, France",
   "-33.8688,151.2093": "Sydney, Australia",
   "30.0444,31.2357": "Cairo, Egypt",
+  "34.0522,-118.2437": "Los Angeles, USA",
+  "-23.5505,-46.6333": "São Paulo, Brazil",
+  "19.076,72.8777": "Mumbai, India",
+  "43.6532,-79.3832": "Toronto, Canada",
+  "41.9028,12.4964": "Rome, Italy",
+  "25.2048,55.2708": "Dubai, UAE",
+  "1.3521,103.8198": "Singapore",
+  "39.9042,116.4074": "Beijing, China",
+  "37.5665,126.978": "Seoul, South Korea",
+  "-34.6037,-58.3816": "Buenos Aires, Argentina",
+  "6.5244,3.3792": "Lagos, Nigeria",
+  "13.7563,100.5018": "Bangkok, Thailand",
+  "41.0082,28.9784": "Istanbul, Turkey",
+  "19.4326,-99.1332": "Mexico City, Mexico",
 
   // Philippines - Luzon
   "14.5995,120.9842": "Manila, Philippines",
@@ -104,6 +118,11 @@ const elCitySelect = document.getElementById('city-select');
 const elLatInput = document.getElementById('lat-input');
 const elLonInput = document.getElementById('lon-input');
 const elFetchBtn = document.getElementById('fetch-btn');
+
+// Search Elements
+const elSearchInput = document.getElementById('search-input');
+const elSearchBtn = document.getElementById('search-btn');
+const elSearchResults = document.getElementById('search-results');
 
 // Hero Elements
 const elHeroCity = document.getElementById('hero-city');
@@ -501,6 +520,72 @@ elFetchBtn.addEventListener('click', () => {
   }
 
   fetchForecast(latVal, lonVal);
+});
+
+// Dynamic Geocoding Search handler
+async function performGeocodingSearch(query) {
+  if (!query || query.trim().length === 0) return;
+
+  try {
+    const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`);
+    if (!res.ok) throw new Error("Geocoding search failed");
+    const data = await res.json();
+
+    if (!data.results || data.results.length === 0) {
+      elSearchResults.innerHTML = `<div class="p-3 text-xs text-slate-400">No results found for "${query}"</div>`;
+      elSearchResults.classList.remove('hidden');
+      return;
+    }
+
+    elSearchResults.innerHTML = '';
+    data.results.forEach(loc => {
+      const item = document.createElement('div');
+      item.className = 'p-3 hover:bg-slate-800 cursor-pointer text-xs flex flex-col border-b border-slate-800 last:border-0';
+      const name = loc.name;
+      const admin = loc.admin1 ? `, ${loc.admin1}` : '';
+      const country = loc.country ? `, ${loc.country}` : '';
+      const fullLabel = `${name}${admin}${country}`;
+
+      item.innerHTML = `
+        <span class="font-bold text-slate-200">${name}</span>
+        <span class="text-[10px] text-slate-400">${loc.admin1 || ''} ${loc.country || ''} (${loc.latitude.toFixed(2)}, ${loc.longitude.toFixed(2)})</span>
+      `;
+
+      item.addEventListener('click', () => {
+        elLatInput.value = loc.latitude;
+        elLonInput.value = loc.longitude;
+        elCitySelect.value = 'custom';
+        elSearchResults.classList.add('hidden');
+        elSearchInput.value = fullLabel;
+        fetchForecast(loc.latitude, loc.longitude);
+      });
+
+      elSearchResults.appendChild(item);
+    });
+
+    elSearchResults.classList.remove('hidden');
+  } catch (err) {
+    console.error(err);
+    showError("Failed to search location.");
+  }
+}
+
+if (elSearchBtn) {
+  elSearchBtn.addEventListener('click', () => performGeocodingSearch(elSearchInput.value));
+}
+
+if (elSearchInput) {
+  elSearchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      performGeocodingSearch(elSearchInput.value);
+    }
+  });
+}
+
+document.addEventListener('click', (e) => {
+  if (elSearchResults && !elSearchResults.contains(e.target) && e.target !== elSearchInput && e.target !== elSearchBtn) {
+    elSearchResults.classList.add('hidden');
+  }
 });
 
 // Initial Load: Fetch default (Berlin, Germany)

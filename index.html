@@ -118,6 +118,25 @@
           <i class="fa-solid fa-magnifying-glass-location text-indigo-400"></i> Location settings
         </h2>
 
+        <!-- Dynamic Search Input -->
+        <div class="flex flex-col gap-2 relative">
+          <label for="search-input" class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Search Worldwide Location</label>
+          <div class="flex gap-2">
+            <input type="text" id="search-input" class="w-full glass-input rounded-xl px-4 py-2.5 text-sm" placeholder="e.g. Paris, Tokyo, Manila...">
+            <button id="search-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center gap-2">
+              <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
+          </div>
+          <!-- Search Dropdown Results -->
+          <div id="search-results" class="hidden absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto no-scrollbar"></div>
+        </div>
+
+        <div class="relative flex py-1 items-center">
+          <div class="flex-grow border-t border-slate-800"></div>
+          <span class="flex-shrink mx-4 text-slate-500 text-xs font-bold uppercase">or choose preset</span>
+          <div class="flex-grow border-t border-slate-800"></div>
+        </div>
+
         <!-- Preset dropdown -->
         <div class="flex flex-col gap-2">
           <label for="city-select" class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Quick Select City</label>
@@ -133,6 +152,20 @@
                 <option value="48.8566,2.3522" class="bg-slate-900 text-slate-100">Paris, France</option>
                 <option value="-33.8688,151.2093" class="bg-slate-900 text-slate-100">Sydney, Australia</option>
                 <option value="30.0444,31.2357" class="bg-slate-900 text-slate-100">Cairo, Egypt</option>
+                <option value="34.0522,-118.2437" class="bg-slate-900 text-slate-100">Los Angeles, USA</option>
+                <option value="-23.5505,-46.6333" class="bg-slate-900 text-slate-100">São Paulo, Brazil</option>
+                <option value="19.076,72.8777" class="bg-slate-900 text-slate-100">Mumbai, India</option>
+                <option value="43.6532,-79.3832" class="bg-slate-900 text-slate-100">Toronto, Canada</option>
+                <option value="41.9028,12.4964" class="bg-slate-900 text-slate-100">Rome, Italy</option>
+                <option value="25.2048,55.2708" class="bg-slate-900 text-slate-100">Dubai, UAE</option>
+                <option value="1.3521,103.8198" class="bg-slate-900 text-slate-100">Singapore</option>
+                <option value="39.9042,116.4074" class="bg-slate-900 text-slate-100">Beijing, China</option>
+                <option value="37.5665,126.978" class="bg-slate-900 text-slate-100">Seoul, South Korea</option>
+                <option value="-34.6037,-58.3816" class="bg-slate-900 text-slate-100">Buenos Aires, Argentina</option>
+                <option value="6.5244,3.3792" class="bg-slate-900 text-slate-100">Lagos, Nigeria</option>
+                <option value="13.7563,100.5018" class="bg-slate-900 text-slate-100">Bangkok, Thailand</option>
+                <option value="41.0082,28.9784" class="bg-slate-900 text-slate-100">Istanbul, Turkey</option>
+                <option value="19.4326,-99.1332" class="bg-slate-900 text-slate-100">Mexico City, Mexico</option>
               </optgroup>
 
               <optgroup label="Philippines - Luzon" class="bg-slate-900 text-amber-400 font-semibold">
