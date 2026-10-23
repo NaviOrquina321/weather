@@ -476,12 +476,56 @@ async function loadWorldData() {
   try {
     let data = null;
 
-    if (window.WORLD_DATA && Array.isArray(window.WORLD_DATA)) {
+    if (window.WORLD_DATA && Array.isArray(window.WORLD_DATA) && window.WORLD_DATA.length > 0) {
       data = window.WORLD_DATA;
     } else {
-      const res = await fetch('data/world.json');
-      if (!res.ok) throw new Error("Could not load world locations dataset");
-      data = await res.json();
+      try {
+        const res = await fetch('data/world.json');
+        if (res.ok) {
+          data = await res.json();
+        }
+      } catch (fetchErr) {
+        console.warn("fetch('data/world.json') failed, checking fallback dataset:", fetchErr);
+      }
+    }
+
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      // Emergency Default Fallback Dataset in case both external file imports fail
+      data = [
+        ["PH", "Philippines", [
+          ["National Capital Region", [
+            ["Manila", 14.60, 120.98],
+            ["Quezon City", 14.65, 121.05],
+            ["Makati", 14.55, 121.02],
+            ["Taguig", 14.52, 121.05]
+          ]],
+          ["Cebu", [
+            ["Cebu City", 10.31, 123.89],
+            ["Mandaue", 10.33, 123.94],
+            ["Lapu-Lapu City", 10.31, 123.95]
+          ]],
+          ["South Cotabato", [
+            ["City of Koronadal", 6.49, 124.89],
+            ["Banga", 6.45, 124.76],
+            ["General Santos", 6.12, 125.17]
+          ]]
+        ]],
+        ["DE", "Germany", [
+          ["Berlin", [["Berlin", 52.52, 13.41]]],
+          ["Bavaria", [["Munich", 48.14, 11.58], ["Nuremberg", 49.45, 11.08]]],
+          ["Hamburg", [["Hamburg", 53.55, 9.99]]]
+        ]],
+        ["US", "United States", [
+          ["California", [["Los Angeles", 34.05, -118.24], ["San Francisco", 37.77, -122.42]]],
+          ["New York", [["New York City", 40.71, -74.01]]],
+          ["Florida", [["Miami", 25.76, -80.19]]]
+        ]],
+        ["JP", "Japan", [
+          ["Tokyo", [["Tokyo", 35.68, 139.69]]],
+          ["Osaka", [["Osaka", 34.69, 135.50]]],
+          ["Kyoto", [["Kyoto", 35.01, 135.77]]]
+        ]]
+      ];
     }
 
     // Append lowercased search index string to each city row [cityName, lat, lon, searchIndex]
@@ -494,19 +538,21 @@ async function loadWorldData() {
       ])
     ]);
 
-    // Auto expand Philippines by default if available
+    // Auto expand Philippines or first country by default
     const phIdx = worldLocations.findIndex(c => c[0] === 'PH' || c[1] === 'Philippines');
     if (phIdx !== -1) {
       expandedCountries.add(phIdx);
-      // Auto expand first region
       expandedRegions.add(`${phIdx}-0`);
+    } else if (worldLocations.length > 0) {
+      expandedCountries.add(0);
+      expandedRegions.add('0-0');
     }
 
     renderLocationAccordion();
   } catch (err) {
     console.error("Failed to load world data:", err);
     if (elLocationAccordion) {
-      elLocationAccordion.innerHTML = `<div class="p-4 text-xs text-rose-400">Error loading world dataset. Please run SkyCast via a web server or load data/world.js.</div>`;
+      elLocationAccordion.innerHTML = `<div class="p-4 text-xs text-rose-400">Error loading world dataset.</div>`;
     }
   }
 }
