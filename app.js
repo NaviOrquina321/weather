@@ -411,7 +411,9 @@ function renderHourlyChart(hourly) {
         borderWidth: 3,
         pointBackgroundColor: '#818cf8',
         pointBorderColor: '#ffffff',
-        pointHoverRadius: 6,
+        pointRadius: 5,
+        pointHoverRadius: 8,
+        pointHitRadius: 15,
         fill: true,
         backgroundColor: gradient,
         tension: 0.4
@@ -420,6 +422,15 @@ function renderHourlyChart(hourly) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      onHover: (event, chartElement) => {
+        if (event.native && event.native.target) {
+          event.native.target.style.cursor = chartElement[0] ? 'pointer' : 'default';
+        }
+      },
       plugins: {
         legend: {
           display: false
@@ -468,6 +479,41 @@ function renderHourlyChart(hourly) {
       }
     }
   });
+
+  // Direct canvas click handler for precise nearest-point calculation
+  const canvasEl = document.getElementById('hourlyChart');
+  canvasEl.onclick = (evt) => {
+    if (!hourlyChartInstance) return;
+    const rect = canvasEl.getBoundingClientRect();
+    const clickX = evt.clientX - rect.left;
+    const points = hourlyChartInstance.getDatasetMeta(0).data;
+    if (!points || points.length === 0) return;
+
+    let closestIdx = 0;
+    let minDiff = Infinity;
+    points.forEach((p, idx) => {
+      const diff = Math.abs(p.x - clickX);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIdx = idx;
+      }
+    });
+
+    if (hourlyByDay[selectedDayIndex] && timesByDay[selectedDayIndex]) {
+      const rawTemp = hourlyByDay[selectedDayIndex][closestIdx];
+      const rawTime = timesByDay[selectedDayIndex][closestIdx];
+
+      if (rawTemp !== undefined && rawTime) {
+        if (currentUnit === 'C') {
+          elCurrentTemp.textContent = rawTemp.toFixed(1);
+        } else {
+          elCurrentTemp.textContent = cToF(rawTemp).toFixed(1);
+        }
+        const timeDate = new Date(rawTime);
+        elCurrentTime.textContent = timeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " " + timeDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      }
+    }
+  };
 }
 
 // ----------------------------------------------------
