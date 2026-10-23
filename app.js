@@ -258,19 +258,31 @@ function renderWeatherDashboard() {
   if (elHeroCity) elHeroCity.textContent = cityName;
   if (elHeroCoords) elHeroCoords.textContent = `${latVal}°N, ${lonVal}°E`;
 
-  // Parse/Format Time
-  const timeDate = new Date(current.time);
-  elCurrentTime.textContent = timeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " " + timeDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  // Parse/Format Time directly from local ISO string (current.time e.g., "2026-10-23T11:00")
+  if (current.time) {
+    const [datePart, timePart] = current.time.split("T");
+    if (datePart && timePart) {
+      const [year, month, day] = datePart.split("-").map(Number);
+      const [hour, minute] = timePart.split(":").map(Number);
+      const dateObj = new Date(Date.UTC(year, month - 1, day, hour, minute));
+      const timeStr = dateObj.toLocaleTimeString('en-US', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' });
+      const dateStr = dateObj.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
+      elCurrentTime.textContent = `${timeStr} ${dateStr}`;
+    } else {
+      const timeDate = new Date(current.time);
+      elCurrentTime.textContent = timeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " " + timeDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
+  }
 
   // Lat and Lon details
   elCurrentLat.textContent = latVal;
   elCurrentLon.textContent = lonVal;
 
-  // Determine current weather code (prioritize current.weather_code over daily summary)
-  const currentWmoCode = current.weather_code !== undefined ? current.weather_code : (daily.weather_code && daily.weather_code[0] !== undefined ? daily.weather_code[0] : 0);
+  // Determine current weather code strictly synced with current.weather_code
+  const currentWmoCode = current.weather_code !== undefined ? current.weather_code : 0;
   const wmoInfo = getWMOInfo(currentWmoCode);
 
-  // Set weather icons and current temp
+  // Set weather icons and current temp directly from real-time payload
   elCurrentWeatherIcon.className = `fa-solid ${wmoInfo.icon} ${wmoInfo.color} animate-pulse`;
   elBgWeatherIcon.className = `fa-solid ${wmoInfo.icon}`;
 
