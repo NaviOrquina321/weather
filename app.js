@@ -118,21 +118,26 @@ const elStatHourlyLow = document.getElementById('stat-hourly-low');
 const elDailyForecastContainer = document.getElementById('daily-forecast-container');
 
 // Change Unit Event Handlers
-elToggleC.addEventListener('click', () => {
-  if (currentUnit === 'C') return;
-  currentUnit = 'C';
-  updateUnitToggleUI();
-  if (weatherData) renderWeatherDashboard();
-});
+if (elToggleC) {
+  elToggleC.addEventListener('click', () => {
+    if (currentUnit === 'C') return;
+    currentUnit = 'C';
+    updateUnitToggleUI();
+    if (weatherData) renderWeatherDashboard();
+  });
+}
 
-elToggleF.addEventListener('click', () => {
-  if (currentUnit === 'F') return;
-  currentUnit = 'F';
-  updateUnitToggleUI();
-  if (weatherData) renderWeatherDashboard();
-});
+if (elToggleF) {
+  elToggleF.addEventListener('click', () => {
+    if (currentUnit === 'F') return;
+    currentUnit = 'F';
+    updateUnitToggleUI();
+    if (weatherData) renderWeatherDashboard();
+  });
+}
 
 function updateUnitToggleUI() {
+  if (!elToggleC || !elToggleF) return;
   if (currentUnit === 'C') {
     elToggleC.className = "px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 bg-indigo-600 text-white shadow-md shadow-indigo-500/20";
     elToggleF.className = "px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 text-slate-400 hover:text-slate-200";
@@ -181,6 +186,7 @@ window.loadWeather = function(lat, lon, label) {
 };
 
 function showLoading(isLoading) {
+  if (!elLoadingSpinner || !elWeatherDashboard) return;
   if (isLoading) {
     elLoadingSpinner.classList.remove('hidden');
     elWeatherDashboard.classList.add('hidden');
@@ -191,6 +197,7 @@ function showLoading(isLoading) {
 }
 
 function showError(msg) {
+  if (!elErrorMessage || !elErrorBanner) return;
   if (msg) {
     elErrorMessage.textContent = msg;
     elErrorBanner.classList.remove('hidden');
@@ -213,7 +220,7 @@ function renderWeatherDashboard() {
   const cityName = activeLocationLabel || "Custom Location";
 
   // Update Main Dashboard & Hero Text
-  elCityLabel.textContent = cityName;
+  if (elCityLabel) elCityLabel.textContent = cityName;
   if (elHeroCity) elHeroCity.textContent = cityName;
   if (elHeroCoords) elHeroCoords.textContent = `${latVal}°N, ${lonVal}°E`;
 
@@ -222,7 +229,7 @@ function renderWeatherDashboard() {
   if (elActiveSelectionLon) elActiveSelectionLon.textContent = `Lon ${lonVal}`;
 
   // Parse/Format Time directly from local ISO string
-  if (current.time) {
+  if (current.time && elCurrentTime) {
     const [datePart, timePart] = current.time.split("T");
     if (datePart && timePart) {
       const [year, month, day] = datePart.split("-").map(Number);
@@ -238,24 +245,26 @@ function renderWeatherDashboard() {
   }
 
   // Lat and Lon details
-  elCurrentLat.textContent = latVal;
-  elCurrentLon.textContent = lonVal;
+  if (elCurrentLat) elCurrentLat.textContent = latVal;
+  if (elCurrentLon) elCurrentLon.textContent = lonVal;
 
   // Weather code synced with current.weather_code
   const currentWmoCode = current.weather_code !== undefined ? current.weather_code : 0;
   const wmoInfo = getWMOInfo(currentWmoCode);
 
-  elCurrentWeatherIcon.className = `fa-solid ${wmoInfo.icon} ${wmoInfo.color} animate-pulse`;
-  elBgWeatherIcon.className = `fa-solid ${wmoInfo.icon}`;
+  if (elCurrentWeatherIcon) elCurrentWeatherIcon.className = `fa-solid ${wmoInfo.icon} ${wmoInfo.color} animate-pulse`;
+  if (elBgWeatherIcon) elBgWeatherIcon.className = `fa-solid ${wmoInfo.icon}`;
 
-  if (currentUnit === 'C') {
-    elCurrentTemp.textContent = current.temperature_2m.toFixed(1);
-    elCurrentUnit.textContent = "°C";
-  } else {
-    elCurrentTemp.textContent = cToF(current.temperature_2m).toFixed(1);
-    elCurrentUnit.textContent = "°F";
+  if (elCurrentTemp && elCurrentUnit) {
+    if (currentUnit === 'C') {
+      elCurrentTemp.textContent = current.temperature_2m.toFixed(1);
+      elCurrentUnit.textContent = "°C";
+    } else {
+      elCurrentTemp.textContent = cToF(current.temperature_2m).toFixed(1);
+      elCurrentUnit.textContent = "°F";
+    }
   }
-  elCurrentWeatherDesc.textContent = wmoInfo.label;
+  if (elCurrentWeatherDesc) elCurrentWeatherDesc.textContent = wmoInfo.label;
 
   const targetDayStr = daily.time[selectedDayIndex];
   const targetDayDate = new Date(targetDayStr);
@@ -273,17 +282,18 @@ function renderWeatherDashboard() {
   const minHourTemp = Math.min(...hourlyTemps);
   const maxHourTemp = Math.max(...hourlyTemps);
 
-  elStatTempRange.textContent = `${formatTemp(minHourTemp)} / ${formatTemp(maxHourTemp)}`;
-  elStatWmoCode.textContent = targetWmoCode;
-  elStatWmoLabel.textContent = targetWmoInfo.label;
-  elStatHourlyPeak.textContent = formatTemp(maxHourTemp);
-  elStatHourlyLow.textContent = formatTemp(minHourTemp);
+  if (elStatTempRange) elStatTempRange.textContent = `${formatTemp(minHourTemp)} / ${formatTemp(maxHourTemp)}`;
+  if (elStatWmoCode) elStatWmoCode.textContent = targetWmoCode;
+  if (elStatWmoLabel) elStatWmoLabel.textContent = targetWmoInfo.label;
+  if (elStatHourlyPeak) elStatHourlyPeak.textContent = formatTemp(maxHourTemp);
+  if (elStatHourlyLow) elStatHourlyLow.textContent = formatTemp(minHourTemp);
 
   renderDailyForecast(daily);
   renderHourlyChart(hourly);
 }
 
 function renderDailyForecast(daily) {
+  if (!elDailyForecastContainer) return;
   elDailyForecastContainer.innerHTML = '';
 
   const days = daily.time;
@@ -343,7 +353,9 @@ function renderDailyForecast(daily) {
 }
 
 function renderHourlyChart(hourly) {
-  const ctx = document.getElementById('hourlyChart').getContext('2d');
+  const canvasEl = document.getElementById('hourlyChart');
+  if (!canvasEl) return;
+  const ctx = canvasEl.getContext('2d');
 
   if (hourlyChartInstance) {
     hourlyChartInstance.destroy();
@@ -417,7 +429,6 @@ function renderHourlyChart(hourly) {
     }
   });
 
-  const canvasEl = document.getElementById('hourlyChart');
   canvasEl.onclick = (evt) => {
     if (!hourlyChartInstance) return;
     const rect = canvasEl.getBoundingClientRect();
@@ -440,13 +451,17 @@ function renderHourlyChart(hourly) {
       const rawTime = timesByDay[selectedDayIndex][closestIdx];
 
       if (rawTemp !== undefined && rawTime) {
-        if (currentUnit === 'C') {
-          elCurrentTemp.textContent = rawTemp.toFixed(1);
-        } else {
-          elCurrentTemp.textContent = cToF(rawTemp).toFixed(1);
+        if (elCurrentTemp) {
+          if (currentUnit === 'C') {
+            elCurrentTemp.textContent = rawTemp.toFixed(1);
+          } else {
+            elCurrentTemp.textContent = cToF(rawTemp).toFixed(1);
+          }
         }
-        const timeDate = new Date(rawTime);
-        elCurrentTime.textContent = timeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " " + timeDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        if (elCurrentTime) {
+          const timeDate = new Date(rawTime);
+          elCurrentTime.textContent = timeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " " + timeDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        }
       }
     }
   };
@@ -684,6 +699,7 @@ if (elFetchBtn) {
   }
 
   function render(animate) {
+    if (!listEl) return;
     var focusKey = null;
     var active = document.activeElement;
     if (active && listEl.contains(active)) focusKey = active.getAttribute('data-key');
@@ -721,6 +737,7 @@ if (elFetchBtn) {
   }
 
   function updateSummary() {
+    if (!labelEl || !coordsEl) return;
     if (!state.sel) {
       labelEl.textContent = 'No city selected';
       coordsEl.textContent = '';
@@ -823,8 +840,10 @@ if (elFetchBtn) {
         state.openRegion = k + '|' + j;
         if (c >= PAGE_SIZE) state.shown[state.openRegion] = Math.ceil((c + 1) / PAGE_SIZE) * PAGE_SIZE;
         selectCity({ k: k, j: j, c: c }, true);
-        var selectedRow = listEl.querySelector('.cb-city-row.is-selected');
-        if (selectedRow && selectedRow.scrollIntoView) selectedRow.scrollIntoView({ block: 'nearest' });
+        if (listEl) {
+          var selectedRow = listEl.querySelector('.cb-city-row.is-selected');
+          if (selectedRow && selectedRow.scrollIntoView) selectedRow.scrollIntoView({ block: 'nearest' });
+        }
         return;
       }
     }
