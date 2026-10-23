@@ -55,7 +55,7 @@ let worldLocations = [];
 let activeLocationLabel = "Berlin, Germany";
 let expandedCountries = new Set();
 let expandedRegions = new Set();
-let selectedCityKey = ""; // "cIdx-rIdx-cityIdx"
+let selectedLocationKey = ""; // "c-cIdx" or "r-cIdx-rIdx" or "city-cIdx-rIdx-cityIdx"
 
 // Converts a flat array of 168 elements into a 7x24 2D grid array
 function buildDayGrid(flatList) {
@@ -571,23 +571,51 @@ function renderLocationAccordion(filterQuery = "") {
 
     const isCountryExpanded = q ? true : expandedCountries.has(cIdx);
 
-    // Create Level 1: Country Card Element (matching design from image.png)
+    // Find representative coordinates for Country (first city in first region)
+    let countryLat = null;
+    let countryLon = null;
+    if (regions.length > 0 && regions[0][1].length > 0) {
+      countryLat = regions[0][1][0][1];
+      countryLon = regions[0][1][0][2];
+    }
+
+    const cKey = `c-${cIdx}`;
+    const isCountrySelected = selectedLocationKey === cKey;
+
+    // Create Level 1: Country Card Element
     const countryCard = document.createElement('div');
-    countryCard.className = `rounded-xl border ${isCountryExpanded ? 'border-indigo-500/40 bg-slate-900/80 shadow-md' : 'border-slate-800/80 bg-slate-900/40 hover:border-slate-700/80'} overflow-hidden transition-all duration-200`;
+    countryCard.className = `rounded-xl border ${isCountrySelected ? 'border-indigo-500 ring-2 ring-indigo-500/30 bg-indigo-950/40 shadow-lg' : isCountryExpanded ? 'border-indigo-500/40 bg-slate-900/80 shadow-md' : 'border-slate-800/80 bg-slate-900/40 hover:border-slate-700/80'} overflow-hidden transition-all duration-200`;
 
     const countryHeader = document.createElement('div');
     countryHeader.className = 'px-3.5 py-3 flex items-center justify-between cursor-pointer select-none';
     countryHeader.innerHTML = `
       <div class="flex items-center gap-2.5">
         <span class="px-2 py-0.5 text-[10px] font-bold bg-indigo-900/60 text-indigo-300 rounded border border-indigo-700/50 uppercase tracking-wider">${code}</span>
-        <span class="font-bold text-slate-100 text-xs">${countryName}</span>
+        <span class="font-bold text-slate-100 text-xs hover:text-indigo-300 transition-colors">${countryName}</span>
       </div>
-      <div class="flex items-center gap-1.5 text-slate-400 text-[11px]">
-        <span>${totalRegions} ${totalRegions === 1 ? 'region' : 'regions'}</span>
-        <i class="fa-solid ${isCountryExpanded ? 'fa-chevron-down text-indigo-400' : 'fa-chevron-right'} text-[10px]"></i>
+      <div class="flex items-center gap-2 text-slate-400 text-[11px]">
+        ${countryLat !== null ? `<button class="select-country-btn px-2 py-0.5 text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white rounded font-medium transition-all shadow-sm">Select Country</button>` : ''}
+        <span class="text-[10px]">${totalRegions} ${totalRegions === 1 ? 'region' : 'regions'}</span>
+        <i class="toggle-country-chevron fa-solid ${isCountryExpanded ? 'fa-chevron-down text-indigo-400' : 'fa-chevron-right'} text-[10px] p-1"></i>
       </div>
     `;
 
+    // Click on Select Country button to fetch country forecast
+    const selectCountryBtn = countryHeader.querySelector('.select-country-btn');
+    if (selectCountryBtn) {
+      selectCountryBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (countryLat !== null && countryLon !== null) {
+          selectedLocationKey = cKey;
+          elLatInput.value = countryLat;
+          elLonInput.value = countryLon;
+          fetchForecast(countryLat, countryLon, countryName);
+          renderLocationAccordion(elSearchInput ? elSearchInput.value : "");
+        }
+      });
+    }
+
+    // Click header to toggle expansion
     countryHeader.addEventListener('click', () => {
       if (expandedCountries.has(cIdx)) {
         expandedCountries.delete(cIdx);
@@ -609,18 +637,44 @@ function renderLocationAccordion(filterQuery = "") {
         const isRegionExpanded = q ? true : expandedRegions.has(regionKey);
         const totalCitiesInRegion = matchingCities.length;
 
+        // Representative coordinates for Region (first matching city in region)
+        let regionLat = null;
+        let regionLon = null;
+        if (matchingCities.length > 0) {
+          regionLat = matchingCities[0].cityRow[1];
+          regionLon = matchingCities[0].cityRow[2];
+        }
+
+        const rKey = `r-${cIdx}-${rIdx}`;
+        const isRegionSelected = selectedLocationKey === rKey;
+
         const regionBox = document.createElement('div');
-        regionBox.className = 'rounded-lg overflow-hidden border border-slate-800/60 bg-slate-900/30';
+        regionBox.className = `rounded-lg overflow-hidden border ${isRegionSelected ? 'border-indigo-500 ring-1 ring-indigo-500/40 bg-indigo-950/30' : 'border-slate-800/60 bg-slate-900/30'}`;
 
         const regionHeader = document.createElement('div');
         regionHeader.className = 'px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/40 text-xs select-none';
         regionHeader.innerHTML = `
-          <span class="font-medium text-slate-200">${regionName}</span>
-          <div class="flex items-center gap-1.5 text-slate-400 text-[10px]">
+          <span class="font-medium text-slate-200 hover:text-indigo-300 transition-colors">${regionName}</span>
+          <div class="flex items-center gap-2 text-slate-400 text-[10px]">
+            ${regionLat !== null ? `<button class="select-region-btn px-2 py-0.5 text-[9px] bg-indigo-600/90 hover:bg-indigo-500 text-white rounded font-medium transition-all shadow-sm">Select Region</button>` : ''}
             <span>${totalCitiesInRegion} ${totalCitiesInRegion === 1 ? 'city' : 'cities'}</span>
-            <i class="fa-solid ${isRegionExpanded ? 'fa-chevron-down text-indigo-400' : 'fa-chevron-right'}"></i>
+            <i class="fa-solid ${isRegionExpanded ? 'fa-chevron-down text-indigo-400' : 'fa-chevron-right'} p-1"></i>
           </div>
         `;
+
+        const selectRegionBtn = regionHeader.querySelector('.select-region-btn');
+        if (selectRegionBtn) {
+          selectRegionBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (regionLat !== null && regionLon !== null) {
+              selectedLocationKey = rKey;
+              elLatInput.value = regionLat;
+              elLonInput.value = regionLon;
+              fetchForecast(regionLat, regionLon, `${regionName}, ${countryName}`);
+              renderLocationAccordion(elSearchInput ? elSearchInput.value : "");
+            }
+          });
+        }
 
         regionHeader.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -643,8 +697,8 @@ function renderLocationAccordion(filterQuery = "") {
             const cityName = cityRow[0];
             const lat = cityRow[1];
             const lon = cityRow[2];
-            const cKey = `${cIdx}-${rIdx}-${cityIdx}`;
-            const isSelected = selectedCityKey === cKey;
+            const cityKey = `city-${cIdx}-${rIdx}-${cityIdx}`;
+            const isSelected = selectedLocationKey === cityKey;
 
             const cityItem = document.createElement('div');
             if (isSelected) {
@@ -654,13 +708,16 @@ function renderLocationAccordion(filterQuery = "") {
             }
 
             cityItem.innerHTML = `
-              <span>${cityName}</span>
+              <div class="flex items-center gap-1.5">
+                <i class="fa-solid fa-city text-[10px] ${isSelected ? 'text-indigo-200' : 'text-slate-500'}"></i>
+                <span>${cityName}</span>
+              </div>
               <span class="${isSelected ? 'text-indigo-100' : 'text-slate-400'} text-[10px] font-mono">${lat}, ${lon}</span>
             `;
 
             cityItem.addEventListener('click', (e) => {
               e.stopPropagation();
-              selectedCityKey = cKey;
+              selectedLocationKey = cityKey;
               elLatInput.value = lat;
               elLonInput.value = lon;
 
