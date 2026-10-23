@@ -55,6 +55,7 @@ let worldLocations = [];
 let activeLocationLabel = "Berlin, Germany";
 let expandedCountries = new Set();
 let expandedRegions = new Set();
+let regionCityLimits = new Map(); // Maps regionKey to visible city limit count
 let selectedLocationKey = ""; // "c-cIdx" or "r-cIdx-rIdx" or "city-cIdx-rIdx-cityIdx"
 
 // Converts a flat array of 168 elements into a 7x24 2D grid array
@@ -734,12 +735,15 @@ function renderLocationAccordion(filterQuery = "") {
 
         regionBox.appendChild(regionHeader);
 
-        // If Region Expanded, Render Level 3: Cities
+        // If Region Expanded, Render Level 3: Cities with chunked/paginated rendering
         if (isRegionExpanded && matchingCities.length > 0) {
           const citiesContainer = document.createElement('div');
           citiesContainer.className = 'px-2 py-1.5 flex flex-col gap-1 bg-slate-950/60 border-t border-slate-800/40';
 
-          matchingCities.forEach(({ cityIdx, cityRow }) => {
+          const limit = regionCityLimits.get(regionKey) || 50;
+          const visibleCities = q ? matchingCities : matchingCities.slice(0, limit);
+
+          visibleCities.forEach(({ cityIdx, cityRow }) => {
             const cityName = cityRow[0];
             const lat = cityRow[1];
             const lon = cityRow[2];
@@ -754,11 +758,11 @@ function renderLocationAccordion(filterQuery = "") {
             }
 
             cityItem.innerHTML = `
-              <div class="flex items-center gap-1.5">
-                <i class="fa-solid fa-city text-[10px] ${isSelected ? 'text-indigo-200' : 'text-slate-500'}"></i>
-                <span>${cityName}</span>
+              <div class="flex items-center gap-1.5 truncate pr-2">
+                <i class="fa-solid fa-city text-[10px] ${isSelected ? 'text-indigo-200' : 'text-slate-500'} shrink-0"></i>
+                <span class="truncate">${cityName}</span>
               </div>
-              <span class="${isSelected ? 'text-indigo-100' : 'text-slate-400'} text-[10px] font-mono">${lat}, ${lon}</span>
+              <span class="${isSelected ? 'text-indigo-100' : 'text-slate-400'} text-[10px] font-mono shrink-0">${lat}, ${lon}</span>
             `;
 
             cityItem.addEventListener('click', (e) => {
@@ -774,6 +778,19 @@ function renderLocationAccordion(filterQuery = "") {
 
             citiesContainer.appendChild(cityItem);
           });
+
+          // "Show More" Chunk Control
+          if (!q && matchingCities.length > limit) {
+            const showMoreBtn = document.createElement('button');
+            showMoreBtn.className = 'mt-1 py-1.5 text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/50 border border-indigo-800/50 rounded-lg transition-colors text-center w-full';
+            showMoreBtn.innerText = `Show more cities (${matchingCities.length - limit} remaining)...`;
+            showMoreBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              regionCityLimits.set(regionKey, limit + 50);
+              renderLocationAccordion(elSearchInput ? elSearchInput.value : "");
+            });
+            citiesContainer.appendChild(showMoreBtn);
+          }
 
           regionBox.appendChild(citiesContainer);
         }
@@ -799,8 +816,12 @@ if (elSearchBtn) {
 }
 
 if (elSearchInput) {
+  let searchDebounceTimer = null;
   elSearchInput.addEventListener('input', () => {
-    renderLocationAccordion(elSearchInput.value);
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+      renderLocationAccordion(elSearchInput.value);
+    }, 200);
   });
 }
 
