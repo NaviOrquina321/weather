@@ -144,28 +144,80 @@
             <select id="city-select" class="w-full glass-input rounded-xl px-4 py-3 appearance-none cursor-pointer text-slate-200">
               <option value="custom" class="bg-slate-900">-- Custom Coordinates --</option>
 
-              <optgroup label="Global Cities" class="bg-slate-900 text-indigo-300 font-semibold">
+              <optgroup label="Europe" class="bg-slate-900 text-indigo-300 font-semibold">
                 <option value="52.52,13.41" class="bg-slate-900 text-slate-100" selected>Berlin, Germany</option>
-                <option value="40.7128,-74.006" class="bg-slate-900 text-slate-100">New York, USA</option>
-                <option value="35.6762,139.6503" class="bg-slate-900 text-slate-100">Tokyo, Japan</option>
                 <option value="51.5074,-0.1278" class="bg-slate-900 text-slate-100">London, UK</option>
                 <option value="48.8566,2.3522" class="bg-slate-900 text-slate-100">Paris, France</option>
-                <option value="-33.8688,151.2093" class="bg-slate-900 text-slate-100">Sydney, Australia</option>
-                <option value="30.0444,31.2357" class="bg-slate-900 text-slate-100">Cairo, Egypt</option>
-                <option value="34.0522,-118.2437" class="bg-slate-900 text-slate-100">Los Angeles, USA</option>
-                <option value="-23.5505,-46.6333" class="bg-slate-900 text-slate-100">São Paulo, Brazil</option>
-                <option value="19.076,72.8777" class="bg-slate-900 text-slate-100">Mumbai, India</option>
-                <option value="43.6532,-79.3832" class="bg-slate-900 text-slate-100">Toronto, Canada</option>
                 <option value="41.9028,12.4964" class="bg-slate-900 text-slate-100">Rome, Italy</option>
-                <option value="25.2048,55.2708" class="bg-slate-900 text-slate-100">Dubai, UAE</option>
-                <option value="1.3521,103.8198" class="bg-slate-900 text-slate-100">Singapore</option>
-                <option value="39.9042,116.4074" class="bg-slate-900 text-slate-100">Beijing, China</option>
-                <option value="37.5665,126.978" class="bg-slate-900 text-slate-100">Seoul, South Korea</option>
-                <option value="-34.6037,-58.3816" class="bg-slate-900 text-slate-100">Buenos Aires, Argentina</option>
-                <option value="6.5244,3.3792" class="bg-slate-900 text-slate-100">Lagos, Nigeria</option>
-                <option value="13.7563,100.5018" class="bg-slate-900 text-slate-100">Bangkok, Thailand</option>
+                <option value="40.4168,-3.7038" class="bg-slate-900 text-slate-100">Madrid, Spain</option>
+                <option value="52.3676,4.9041" class="bg-slate-900 text-slate-100">Amsterdam, Netherlands</option>
+                <option value="48.2082,16.3738" class="bg-slate-900 text-slate-100">Vienna, Austria</option>
+                <option value="47.3769,8.5417" class="bg-slate-900 text-slate-100">Zurich, Switzerland</option>
+                <option value="37.9838,23.7275" class="bg-slate-900 text-slate-100">Athens, Greece</option>
+                <option value="59.3293,18.0686" class="bg-slate-900 text-slate-100">Stockholm, Sweden</option>
+                <option value="59.9139,10.7522" class="bg-slate-900 text-slate-100">Oslo, Norway</option>
+                <option value="53.3498,-6.2603" class="bg-slate-900 text-slate-100">Dublin, Ireland</option>
+                <option value="50.0755,14.4378" class="bg-slate-900 text-slate-100">Prague, Czech Republic</option>
+                <option value="52.2297,21.0122" class="bg-slate-900 text-slate-100">Warsaw, Poland</option>
+                <option value="38.7223,-9.1393" class="bg-slate-900 text-slate-100">Lisbon, Portugal</option>
                 <option value="41.0082,28.9784" class="bg-slate-900 text-slate-100">Istanbul, Turkey</option>
+              </optgroup>
+
+              <optgroup label="Asia" class="bg-slate-900 text-indigo-300 font-semibold">
+                <option value="35.6762,139.6503" class="bg-slate-900 text-slate-100">Tokyo, Japan</option>
+                <option value="39.9042,116.4074" class="bg-slate-900 text-slate-100">Beijing, China</option>
+                <option value="31.2304,121.4737" class="bg-slate-900 text-slate-100">Shanghai, China</option>
+                <option value="37.5665,126.978" class="bg-slate-900 text-slate-100">Seoul, South Korea</option>
+                <option value="1.3521,103.8198" class="bg-slate-900 text-slate-100">Singapore</option>
+                <option value="13.7563,100.5018" class="bg-slate-900 text-slate-100">Bangkok, Thailand</option>
+                <option value="19.076,72.8777" class="bg-slate-900 text-slate-100">Mumbai, India</option>
+                <option value="28.6139,77.209" class="bg-slate-900 text-slate-100">New Delhi, India</option>
+                <option value="-6.2088,106.8456" class="bg-slate-900 text-slate-100">Jakarta, Indonesia</option>
+                <option value="3.139,101.6869" class="bg-slate-900 text-slate-100">Kuala Lumpur, Malaysia</option>
+                <option value="25.2048,55.2708" class="bg-slate-900 text-slate-100">Dubai, UAE</option>
+                <option value="24.7136,46.6753" class="bg-slate-900 text-slate-100">Riyadh, Saudi Arabia</option>
+                <option value="25.033,121.5654" class="bg-slate-900 text-slate-100">Taipei, Taiwan</option>
+                <option value="21.0285,105.8542" class="bg-slate-900 text-slate-100">Hanoi, Vietnam</option>
+              </optgroup>
+
+              <optgroup label="North America" class="bg-slate-900 text-indigo-300 font-semibold">
+                <option value="40.7128,-74.006" class="bg-slate-900 text-slate-100">New York, USA</option>
+                <option value="34.0522,-118.2437" class="bg-slate-900 text-slate-100">Los Angeles, USA</option>
+                <option value="41.8781,-87.6298" class="bg-slate-900 text-slate-100">Chicago, USA</option>
+                <option value="43.6532,-79.3832" class="bg-slate-900 text-slate-100">Toronto, Canada</option>
+                <option value="49.2827,-123.1207" class="bg-slate-900 text-slate-100">Vancouver, Canada</option>
                 <option value="19.4326,-99.1332" class="bg-slate-900 text-slate-100">Mexico City, Mexico</option>
+                <option value="23.1136,-82.3666" class="bg-slate-900 text-slate-100">Havana, Cuba</option>
+                <option value="9.9281,-84.0907" class="bg-slate-900 text-slate-100">San Jose, Costa Rica</option>
+              </optgroup>
+
+              <optgroup label="South America" class="bg-slate-900 text-indigo-300 font-semibold">
+                <option value="-23.5505,-46.6333" class="bg-slate-900 text-slate-100">São Paulo, Brazil</option>
+                <option value="-22.9068,-43.1729" class="bg-slate-900 text-slate-100">Rio de Janeiro, Brazil</option>
+                <option value="-34.6037,-58.3816" class="bg-slate-900 text-slate-100">Buenos Aires, Argentina</option>
+                <option value="4.711,-74.0721" class="bg-slate-900 text-slate-100">Bogotá, Colombia</option>
+                <option value="-12.0464,-77.0428" class="bg-slate-900 text-slate-100">Lima, Peru</option>
+                <option value="-33.4489,-70.6693" class="bg-slate-900 text-slate-100">Santiago, Chile</option>
+                <option value="10.4806,-66.9036" class="bg-slate-900 text-slate-100">Caracas, Venezuela</option>
+              </optgroup>
+
+              <optgroup label="Africa" class="bg-slate-900 text-indigo-300 font-semibold">
+                <option value="30.0444,31.2357" class="bg-slate-900 text-slate-100">Cairo, Egypt</option>
+                <option value="6.5244,3.3792" class="bg-slate-900 text-slate-100">Lagos, Nigeria</option>
+                <option value="-26.2041,28.0473" class="bg-slate-900 text-slate-100">Johannesburg, South Africa</option>
+                <option value="-33.9249,18.4241" class="bg-slate-900 text-slate-100">Cape Town, South Africa</option>
+                <option value="-1.2921,36.8219" class="bg-slate-900 text-slate-100">Nairobi, Kenya</option>
+                <option value="33.5731,-7.5898" class="bg-slate-900 text-slate-100">Casablanca, Morocco</option>
+                <option value="9.03,38.74" class="bg-slate-900 text-slate-100">Addis Ababa, Ethiopia</option>
+                <option value="5.6037,-0.187" class="bg-slate-900 text-slate-100">Accra, Ghana</option>
+              </optgroup>
+
+              <optgroup label="Oceania" class="bg-slate-900 text-indigo-300 font-semibold">
+                <option value="-33.8688,151.2093" class="bg-slate-900 text-slate-100">Sydney, Australia</option>
+                <option value="-37.8136,144.9631" class="bg-slate-900 text-slate-100">Melbourne, Australia</option>
+                <option value="-27.4705,153.026" class="bg-slate-900 text-slate-100">Brisbane, Australia</option>
+                <option value="-36.8485,174.7633" class="bg-slate-900 text-slate-100">Auckland, New Zealand</option>
+                <option value="-18.1248,178.4501" class="bg-slate-900 text-slate-100">Suva, Fiji</option>
               </optgroup>
 
               <optgroup label="Philippines - Luzon" class="bg-slate-900 text-amber-400 font-semibold">
